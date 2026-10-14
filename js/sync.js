@@ -3,6 +3,7 @@
 // المخدوم يدخل Supabase كمستخدم مجهول (anonymous auth)، والملكية تُربط بـauth.uid().
 // (v6) الخادم/المالك: email+password حقيقي → JWT فيه app_metadata.role (staffLogin). الاسترجاع عبر Edge Function "restore" فقط.
 import * as db from './db.js';
+import {FN} from './functions.js';
 import * as A from './auth.js';
 import {SUPABASE_URL as BASE,SUPABASE_ANON_KEY as KEY} from './config.js';
 
@@ -172,7 +173,7 @@ export async function remoteRestore(name,code){
   if(!enabled()) return {error:'unavailable'};
   if(typeof navigator!=='undefined'&&navigator.onLine===false) return {error:'offline'};
   try{
-    const go=(a)=>fetch(BASE+'/functions/v1/restore',{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+a.access,'Content-Type':'application/json'},body:JSON.stringify({name:A.normName(name),code})});
+    const go=(a)=>fetch(BASE+'/functions/v1/'+FN['restore'],{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+a.access,'Content-Type':'application/json'},body:JSON.stringify({name:A.normName(name),code})});
     let r=await go(await token()); if(r.status===401) r=await go(await token(true));
     let j={}; try{ j=await r.json(); }catch(e){}
     if(r.status===429||j.error==='locked') return {error:'locked'};
@@ -268,7 +269,7 @@ export async function resetPassword(email,password){
   let s; try{ s=await staffAuth(false); }catch(e){ return {ok:false,reason:'offline'}; }
   if(!s) return {ok:false,reason:'auth'};
   try{
-    const r=await fetch(BASE+'/functions/v1/reset-password',{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+s.access,'Content-Type':'application/json'},body:JSON.stringify({email,new_password:password})});
+    const r=await fetch(BASE+'/functions/v1/'+FN['reset-password'],{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+s.access,'Content-Type':'application/json'},body:JSON.stringify({email,new_password:password})});
     let j={}; try{ j=await r.json(); }catch(e){}
     if(r.ok&&j.ok) return {ok:true};
     return {ok:false,reason:j.error||(r.status===404?'nofn':'server')};
@@ -279,7 +280,7 @@ export async function staffAdmin(payload){
   let s; try{ s=await staffAuth(false); }catch(e){ return {ok:false,reason:'offline'}; }
   if(!s) return {ok:false,reason:'auth'};
   try{
-    const r=await fetch(BASE+'/functions/v1/staff-admin',{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+s.access,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const r=await fetch(BASE+'/functions/v1/'+FN['staff-admin'],{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+s.access,'Content-Type':'application/json'},body:JSON.stringify(payload)});
     let j={}; try{ j=await r.json(); }catch(e){}
     if(r.ok&&j.ok) return j;
     return {ok:false,reason:j.error||(r.status===404?'nofn':'server')};
