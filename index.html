@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08090B">
+<title>خدمة إعدادي</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('theme')==='light'?'light':'dark';}catch(e){}</script>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<canvas id="stars-canvas" aria-hidden="true"></canvas>
+<header><h1>📖 خدمة <span>إعدادي</span></h1><p>كنيسة العذراء مريم المطرانية أبوقرقاص</p></header>
+<div class="topbar">
+  <button id="sidebarToggleBtn" type="button" aria-label="القائمة">☰ القائمة</button>
+  <div class="topbar-section" id="topSection"></div>
+  <span id="net" class="badge on">متصل</span>
+  <button id="themeBtn" class="header-btn" type="button" aria-label="تبديل الثيم">☀️</button>
+  <button id="roleBtn" class="rolebtn" type="button"></button>
+</div>
+<div class="sidebar-overlay" id="sbOverlay"></div>
+<aside class="sidebar" id="sidebar" aria-label="القائمة الرئيسية">
+  <div class="sidebar-header"><span>📖 التبويبات</span><button id="sbClose" type="button" aria-label="إغلاق">✕</button></div>
+  <nav id="nav"></nav>
+</aside>
+<div id="banner">يوجد تحديث جديد للتطبيق <button id="upd">تحديث</button></div>
+<div id="remind"></div>
+<main></main>
+<script type="module">
+import {start} from './js/router.js';
+import {initUI} from './js/ui.js';
+const net=document.getElementById('net');
+function setNet(){ net.textContent=navigator.onLine?'متصل':'بدون نت'; net.className='badge '+(navigator.onLine?'on':'off'); }
+addEventListener('online',setNet); addEventListener('offline',setNet); setNet();
+initUI();
+start();
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    const show=()=>{ document.getElementById('banner').classList.add('show');
+      document.getElementById('upd').onclick=()=>reg.waiting&&reg.waiting.postMessage('SKIP_WAITING'); };
+    if(reg.waiting&&navigator.serviceWorker.controller) show();
+    reg.addEventListener('updatefound',()=>{ const w=reg.installing;
+      w.addEventListener('statechange',()=>{ if(w.state==='installed'&&navigator.serviceWorker.controller) show(); }); });
+  });
+  let r; navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(r) return; r=1; location.reload(); });
+}
+</script>
+</body>
+</html>
