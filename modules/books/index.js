@@ -73,7 +73,7 @@ export async function mount(el,ctx){
   const views={
     async books(){
       let rc=''; if(sess){ const f=findCh(sess.bid,sess.num);
-        if(f) rc=`<div class="card2"><b>⏸ عندك امتحان مفتوح</b><div class="hint">${esc(f.b.title)} — إصحاح ${n(sess.num)}</div><button class="btn" data-a="resume">كمّل من النقطة</button></div>`; }
+        if(f) rc=`<div class="card2"><b>⏸ عندك امتحان مفتوح</b><div class="hint">${esc(f.b.title)} — إصيحاح ${n(sess.num)}</div><button class="btn" data-a="resume">كمّل من النقطة</button></div>`; }
       if(!books.length) return `<div class="ph">📖 لا توجد أسفار بعد.<br>تُضاف الأسفار كملفات JSON في مجلد books/</div>${probs()}`;
       return `${rc}<div class="gate">${books.map(b=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${n(b.chapters.length)} إصحاح</small></button>`).join('')}${probs()}</div>`;
     },
