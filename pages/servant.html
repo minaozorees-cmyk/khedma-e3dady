@@ -1210,8 +1210,10 @@ body .btn-row .btn-manual,body .btn-row .btn-clear-input{flex:1 1 calc(50% - 5px
       <select id="liveGrade" aria-label="الصف"><option value="">كل الصفوف</option></select>
       <select id="liveBook" aria-label="السفر"><option value="">كل الأسفار</option></select>
       <input id="liveQ" type="search" placeholder="بحث بالاسم" autocomplete="off">
-      <button data-lv="rank" class="on">🏆 ترتيب</button>
-      <button data-lv="detail">📋 تفصيل</button>
+      <button data-lv="rank" class="on">🏆 الترتيب العام</button>
+      <button data-lv="commit">📋 الالتزام</button>
+      <button data-lv="summary">🖨 مجمع</button>
+      <button data-lv="detail">🔎 تفصيل</button>
       <button id="liveRefresh">🔄 تحديث</button>
     </div>
     <div class="live-sum" id="liveSum"></div>
@@ -2166,7 +2168,7 @@ function commitBadge(s,allChapters){
 // ══════════════════════════════════════════════════════
 //  TABLE BUILDERS
 // ══════════════════════════════════════════════════════
-function buildRankTable(students,allChapters){
+function buildRankTable(students,allChapters,noTime){
   let t=`<table><thead><tr>
     <th class="center">#</th>
     <th class="center" title="التحسن بين آخر إصحاحين">📈</th>
@@ -2174,7 +2176,7 @@ function buildRankTable(students,allChapters){
     <th class="center">الالتزام %</th>
     <th class="center">الالتزام</th>`;
   allChapters.forEach(c=>{t+=`<th class="center">إص ${c}</th>`;});
-  t+=`<th class="center">المجموع</th><th class="center">%</th><th class="center">الوقت</th>
+  t+=`<th class="center">المجموع</th><th class="center">%</th>${noTime?'':'<th class="center">الوقت</th>'}
   </tr></thead><tbody>`;
   students.forEach((s,i)=>{
     const stKey=s.name+'||'+s.grade.key;
@@ -2199,9 +2201,40 @@ function buildRankTable(students,allChapters){
     });
     t+=`<td class="center ${scClass(s.pct)}" style="font-weight:700">${s.totalScore}/${s.totalMax}</td>
         <td class="center ${scClass(s.pct)}">${s.pct}%</td>
-        <td class="center" style="color:var(--text2);font-size:.82rem">${fmt(s.totalTime)}</td></tr>`;
+        ${noTime?'':`<td class="center" style="color:var(--text2);font-size:.82rem">${fmt(s.totalTime)}</td>`}</tr>`;
   });
   return t+`</tbody></table>`;
+}
+
+function buildPodium(students,allChapters,noTime){
+  let html='';
+  const top3=students.slice(0,3);
+  if(top3.length){
+    const circleOrder=top3.length>=3?[1,0,2]:Array.from({length:top3.length},(_,i)=>i);
+    const crowns=['👑','🥈','🥉'];
+    const rankLabels=['الأول','الثاني','الثالث'];
+    const circleClass=['circle-1','circle-2','circle-3'];
+    const itemClass=['ci-1','ci-2','ci-3'];
+    html+=`<div class="podium">`;
+    for(const idx of circleOrder){
+      if(!top3[idx]) continue;
+      const s=top3[idx];
+      html+=`<div class="circle-item ${itemClass[idx]}">
+        <span class="crown">${crowns[idx]}</span>
+        <div class="circle ${circleClass[idx]}">
+          <div class="circle-rank">${rankLabels[idx]}</div>
+          <div class="circle-name">${s.name}</div>
+          <div class="circle-score">${s.totalScore}/${s.totalMax}</div>
+        </div>
+        <div class="circle-info">${s.grade.label}</div>
+        <div class="circle-commit ${s.isFullCommit?'full':'part'}">${s.isFullCommit?'⭐ ملتزم':`📖 ${s.doneChapters}/${allChapters.length}`}</div>
+        <div class="circle-pct">${s.pct}%</div>
+        ${noTime?'':`<div class="circle-time">⏱ ${fmt(s.totalTime)}</div>`}
+      </div>`;
+    }
+    html+=`</div>`;
+  }
+  return html;
 }
 
 function buildCommitTable(students,allChapters){
@@ -2321,32 +2354,7 @@ function renderResults(){
 
   /* TAB 1: الترتيب العام */
   html+=`<div class="tab-content active" id="tab-rank">`;
-  const top3=students.slice(0,3);
-  if(top3.length){
-    const circleOrder=top3.length>=3?[1,0,2]:Array.from({length:top3.length},(_,i)=>i);
-    const crowns=['👑','🥈','🥉'];
-    const rankLabels=['الأول','الثاني','الثالث'];
-    const circleClass=['circle-1','circle-2','circle-3'];
-    const itemClass=['ci-1','ci-2','ci-3'];
-    html+=`<div class="podium">`;
-    for(const idx of circleOrder){
-      if(!top3[idx]) continue;
-      const s=top3[idx];
-      html+=`<div class="circle-item ${itemClass[idx]}">
-        <span class="crown">${crowns[idx]}</span>
-        <div class="circle ${circleClass[idx]}">
-          <div class="circle-rank">${rankLabels[idx]}</div>
-          <div class="circle-name">${s.name}</div>
-          <div class="circle-score">${s.totalScore}/${s.totalMax}</div>
-        </div>
-        <div class="circle-info">${s.grade.label}</div>
-        <div class="circle-commit ${s.isFullCommit?'full':'part'}">${s.isFullCommit?'⭐ ملتزم':`📖 ${s.doneChapters}/${allChapters.length}`}</div>
-        <div class="circle-pct">${s.pct}%</div>
-        <div class="circle-time">⏱ ${fmt(s.totalTime)}</div>
-      </div>`;
-    }
-    html+=`</div>`;
-  }
+  html+=buildPodium(students,allChapters);
   html+=`<div class="table-wrap">${buildRankTable(students,allChapters)}</div></div>`;
 
   /* TAB 2: الالتزام */
@@ -2924,13 +2932,55 @@ function liveRender(){
   liveEl('liveSum').textContent=rows.length?`${students} مخدوم — ${rows.length} نتيجة (أول محاولة لكل إصحاح)`:'';
   document.querySelectorAll('[data-lv]').forEach(b=>b.classList.toggle('on',b.dataset.lv===LIVE.view));
   if(!rows.length){ wrap.innerHTML=`<div class="live-empty">${LIVE.loaded?'لا توجد نتائج مطابقة':'…'}</div>`; return; }
-  if(LIVE.view==='rank'){
-    wrap.innerHTML=`<table class="live-tbl"><thead><tr><th>#</th><th>الاسم</th><th>الصف</th><th>إصحاحات</th><th>المجموع</th><th>النسبة</th><th>المحاولات</th></tr></thead><tbody>`+
-      liveRank(rows).map((x,i)=>`<tr><td>${i+1}</td><td>${liveEsc(x.name)}</td><td>${liveEsc(x.grade)}</td><td>${x.n}</td><td>${x.score}/${x.max}</td><td>${x.pct}%</td><td>${x.attempts}</td></tr>`).join('')+`</tbody></table>`;
-  } else {
+  if(LIVE.view==='detail'){
     wrap.innerHTML=`<table class="live-tbl"><thead><tr><th>الاسم</th><th>الصف</th><th>السفر</th><th>إصحاح</th><th>الدرجة</th><th>النسبة</th><th>المحاولات</th></tr></thead><tbody>`+
       liveDetail(rows).map(r=>`<tr><td>${liveEsc(r.name)}</td><td>${liveEsc(r.grade)}</td><td>${liveEsc(liveTitle(r))}</td><td>${r.chapter_num}</td><td>${r.first_score}/${r.first_total}</td><td>${livePct(r.first_score,r.first_total)}%</td><td>${r.attempts}</td></tr>`).join('')+`</tbody></table>`;
+  } else wrap.innerHTML=liveBoard(rows,LIVE.view);
+}
+// v9.12: نفس شكل لوحة المتميزين (منصة + ترتيب + التزام + مجمع) من صفوف السيرفر. بلا وقت لأنه غير مخزَّن على السيرفر.
+// الإصحاحات أرقام داخل سفر واحد: لو لم يُختر سفر وفيه أكثر من سفر نعرض أحدث سفر.
+function liveBoardScope(rows){
+  const books=new Map(); rows.forEach(r=>{ const t=new Date(r.first_attempted_at||0).getTime()||0; const x=books.get(r.book_id); if(!x||t>x.t) books.set(r.book_id,{t,title:liveTitle(r)}); });
+  if(books.size<=1) return {rows,title:books.size?[...books.values()][0].title:'',note:''};
+  const sel=liveEl('liveBook').value;
+  const id=sel&&books.has(sel)?sel:[...books].sort((a,b)=>b[1].t-a[1].t)[0][0];
+  const title=books.get(id).title;
+  return {rows:rows.filter(r=>r.book_id===id),title,note:sel?'':`<div class="live-sum">يوجد أكثر من سفر — معروض أحدثها: <strong>${liveEsc(title)}</strong> (اختر سفراً من القائمة)</div>`};
+}
+function liveStudents(rows){
+  const stored={};
+  rows.forEach(r=>{
+    const x=stored[r.profile_id]||(stored[r.profile_id]={name:liveEsc(r.name),grade:{key:liveEsc(r.grade),label:liveEsc(r.grade)},chapters:{}}); // تهريب HTML: أسماء من السيرفر
+    x.chapters[String(r.chapter_num)]={score:r.first_score,total:r.first_total,time:0};
+  });
+  const allChapters=[...new Set(rows.map(r=>Number(r.chapter_num)))].filter(c=>c>0).sort((a,b)=>a-b);
+  return {allChapters,students:sortStudents(buildStudents(stored,allChapters))};
+}
+function liveBoard(allRows,view){
+  const sc=liveBoardScope(allRows), {allChapters,students}=liveStudents(sc.rows);
+  if(!students.length) return '<div class="live-empty">لا توجد نتائج مطابقة</div>';
+  const full=students.filter(s=>s.isFullCommit).length, miss=students.length-full;
+  const avgP=Math.round(students.reduce((a,s)=>a+s.pct,0)/students.length);
+  const avgC=Math.round(students.reduce((a,s)=>a+s.commitPct,0)/students.length);
+  let h=sc.note;
+  h+=`<div class="stats-bar">
+    <div class="stat-card"><div class="num">${students.length}</div><div class="lbl">إجمالي الطلاب</div></div>
+    <div class="stat-card"><div class="num">${allChapters.length}</div><div class="lbl">إصحاحات</div></div>
+    <div class="stat-card"><div class="num">${avgP}%</div><div class="lbl">متوسط الدرجات</div></div>
+    <div class="stat-card"><div class="num">${full}</div><div class="lbl">ملتزم بالكل ⭐</div></div>
+  </div>`;
+  if(view==='commit'){
+    h+=`<div class="commit-wrap"><div class="commit-header"><h3>📋 جدول الالتزام</h3><span class="badge-full">⭐ ملتزم: ${full}</span>${miss?`<span class="badge-miss">❌ ناقص: ${miss}</span>`:''}</div>${buildCommitTable(students,allChapters)}</div>`;
+  } else if(view==='summary'){
+    h+=`<div class="wa-card"><div class="wa-card-header"><div class="wa-card-header-icon">📖</div><div class="wa-card-header-text">
+      <div class="wa-card-title">نتائج قراءة سفر ${liveEsc(sc.title||currentBookName)}</div><div class="wa-card-subtitle">${liveEsc(currentChurchName)}</div></div>
+      <div class="wa-card-badge">${students.length} طالب</div></div>
+      <div class="wa-card-body">${buildSummaryTable(students,allChapters)}</div>
+      <div class="wa-card-footer"><div class="wa-footer-stat">متوسط الدرجات: <strong>${avgP}%</strong> &nbsp;·&nbsp; التزام الفريق: <strong>${avgC}%</strong> &nbsp;·&nbsp; ملتزم كامل: <strong>${full}</strong> &nbsp;·&nbsp; إصحاحات: <strong>${allChapters.length}</strong></div></div></div>`;
+  } else {
+    h+=buildPodium(students,allChapters,true)+`<div class="table-wrap">${buildRankTable(students,allChapters,true)}</div>`;
   }
+  return h;
 }
 async function liveLoad(refresh){
   if(LIVE.busy) return; LIVE.busy=true;
@@ -2976,7 +3026,7 @@ async function livePdf(){
   document.querySelectorAll('[data-lx]').forEach(b=>b.addEventListener('click',()=>liveExport(b.dataset.lx)));
   addEventListener('online',()=>{ if(liveEl('panel-live').classList.contains('active')) liveLoad(true); });
 })();
-  // v9.11: شريط التبويبات الداخلي مخفي، فالقائمة الجانبية تفتح الصفحة بـ#live (نتائج مباشرة) أو #board أو #decode
+// v9.11: شريط التبويبات الداخلي مخفي، فالقائمة الجانبية تفتح الصفحة بـ#live (نتائج مباشرة) أو #board أو #decode
 (function hashTab(){ const t=(location.hash||'').slice(1); if(['decode','board','live'].includes(t)) switchMainTab(t); })();
 </script>
 <script type="module">
