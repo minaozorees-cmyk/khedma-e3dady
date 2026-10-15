@@ -2976,6 +2976,8 @@ async function livePdf(){
   document.querySelectorAll('[data-lx]').forEach(b=>b.addEventListener('click',()=>liveExport(b.dataset.lx)));
   addEventListener('online',()=>{ if(liveEl('panel-live').classList.contains('active')) liveLoad(true); });
 })();
+  // v9.11: شريط التبويبات الداخلي مخفي، فالقائمة الجانبية تفتح الصفحة بـ#live (نتائج مباشرة) أو #board أو #decode
+(function hashTab(){ const t=(location.hash||'').slice(1); if(['decode','board','live'].includes(t)) switchMainTab(t); })();
 </script>
 <script type="module">
 // v8: بوابة الدور. تقرأ جلسة الخادم/المالك من IndexedDB (نفس origin التطبيق). واجهة فقط: ملف الصفحة نفسه علني،
