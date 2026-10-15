@@ -18,7 +18,7 @@ export async function mount(el,ctx){
   const prof=await A.activeProfile(), pid=prof?prof.id:'local', nm=esc((prof&&prof.name.split(' ')[0])||'حبيبي');
   const staff=ctx.role!=='student', isStudent=ctx.role==='student'&&!!prof;
   let st={s:'books'}, flash='', tick=null, sess=null;
-  const unlocked=new Set(); // إصحاحات انتهى عدّاد قراءتها في هذه الجلسة
+  const unlocked=new Set();
   const book=()=>books.find(b=>b.id===st.bid);
   const chap=()=>{ const b=book(); return b&&b.chapters.find(c=>c.chapterNum===st.num); };
   const findCh=(bid,num)=>{ const b=books.find(x=>x.id===bid), c=b&&b.chapters.find(x=>x.chapterNum===num); return c?{b,c}:null; };
@@ -27,11 +27,9 @@ export async function mount(el,ctx){
   const back=(a,t)=>`<button class="btn sec" data-a="${a}">${t}</button>`;
   const answeredCount=(qs,ans)=>qs.filter((q,i)=>X.isAnswered(q,ans[i])).length;
 
-  // ===== الجلسة المحفوظة =====
   const persist=()=>{ const c=chap();
     return S.save({bid:st.bid,num:st.num,i:st.i,ans:Array.from({length:c.questions.length},(_,k)=>st.ans[k]??null),
       opts:st.opts,tl:st.shuf.map(x=>x?x.map(e=>e.id):null),startedAt:st.startedAt,profileId:pid}); };
-  // يغلق الجلسة ويحسبها محاولة بدرجتها الحالية؛ يرجع رسالة للمخدوم
   async function closeSession(s,source){
     const f=findCh(s.bid,s.num);
     if(!f){ await S.clear(); sess=null; return ''; }
@@ -43,7 +41,6 @@ export async function mount(el,ctx){
       ?`انتهت جلسة امتحانك السابق (${where}) لأن مرّ عليها أكتر من ٦ ساعات، وتم تسجيل محاولة بدرجتك: ${n(r.score)} / ${n(r.total)}.`
       :`تم تسجيل محاولة الامتحان السابق (${where}) بدرجتك: ${n(r.score)} / ${n(r.total)}.`;
   }
-  // يعيد بناء حالة الامتحان من الجلسة، أو null لو تغيّر محتوى الإصحاح
   function hydrate(s){
     const f=findCh(s.bid,s.num); if(!f) return null; const qs=f.c.questions, L=qs.length;
     if(![s.ans,s.opts,s.tl].every(x=>Array.isArray(x)&&x.length===L)) return null;
@@ -61,7 +58,7 @@ export async function mount(el,ctx){
   async function startExam(){
     const c=chap();
     st={s:'exam',bid:st.bid,num:st.num,i:0,ans:[],startedAt:Date.now(),
-      opts:c.questions.map(q=>q.isTimeline?null:X.shuffle(q.opts.map((_,k)=>k))), // ترتيب العرض؛ data-k يبقى الـindex الأصلي
+      opts:c.questions.map(q=>q.isTimeline?null:X.shuffle(q.opts.map((_,k)=>k))),
       shuf:c.questions.map(q=>q.isTimeline?X.shuffledEvents(q):null)};
     await persist();
   }
@@ -72,7 +69,6 @@ export async function mount(el,ctx){
     st.res=r; st.att=att; st.sum=R.summary(await R.all(),st.bid,st.num); st.s='result';
   }
 
-  // ===== العرض =====
   const probs=()=>staff&&problems.length?`<details class="card2"><summary>⚠️ ملاحظات على الملفات (${n(problems.length)})</summary>${problems.map(p=>`<div class="row"><span><b>${esc(p.file)}</b> — ${esc(p.msg)}</span></div>`).join('')}</details>`:'';
   const views={
     async books(){
@@ -107,7 +103,7 @@ export async function mount(el,ctx){
         body=`<div class="hint">اضغط الأحداث بالترتيب الصحيح. اضغط على حدث مختار لإلغائه.</div>
           <ol class="tl">${picked.map(id=>`<li><button class="opt on" data-a="unpick" data-k="${q.events.indexOf(byId(id))}">${esc(byId(id).text)}</button></li>`).join('')}</ol>
           ${rest.map(e=>`<button class="opt" data-a="pick" data-k="${q.events.indexOf(e)}">${esc(e.text)}</button>`).join('')}`;
-      } else body=st.opts[i].map(k=>`<button class="opt${a===k?' on':''}" data-a="ans" data-k="${k}">${esc(q.opts[k])}</button>`).join(''); // k = الـindex الأصلي
+      } else body=st.opts[i].map(k=>`<button class="opt${a===k?' on':''}" data-a="ans" data-k="${k}">${esc(q.opts[k])}</button>`).join('');
       return `<div class="gate"><div class="hint">سؤال ${n(i+1)} من ${n(c.questions.length)}</div><div class="prog"><i style="width:${Math.round(100*i/c.questions.length)}%"></i></div>
         <div class="card2">${q.type?`<small class="k">${esc(q.type)}</small>`:''}<div class="qt">${esc(q.q)}</div>${body}</div>
         <button class="btn" data-a="next" ${X.isAnswered(q,a)?'':'disabled'}>${last?'إنهاء':'التالي'}</button>${back('quit','خروج من الامتحان')}</div>`;
@@ -139,7 +135,6 @@ export async function mount(el,ctx){
   }
   async function render(){
     clearInterval(tick);
-    // حماية: لو تغيّر أو اختفى السفر/الإصحاح (بعد إعادة تحميل) نرجع لقائمة آمنة بدل ما نرمي خطأ
     if(['chapters','read','exam','result','resume'].includes(st.s)&&!book()) st={s:'books'};
     if(['read','exam','result'].includes(st.s)&&!chap()) st=book()?{s:'chapters',bid:st.bid}:{s:'books'};
     if(st.s==='result'&&!st.res) st={s:'chapters',bid:st.bid};
@@ -150,15 +145,14 @@ export async function mount(el,ctx){
     if(st.s==='read') startTick();
   }
 
-  // (v9.3) زر "إرسال": يرسل النتائج المعلّقة الآن + يفحص التحديث. لا يعيد رسم الشاشة (عشان الرسالة تفضل ظاهرة).
   async function sendNow(btn){
     const box=el.querySelector('#sendst'); btn.disabled=true; const lbl=btn.textContent; btn.textContent='جارٍ التحقق والإرسال…'; box.className='hint'; box.textContent='';
     const [s,u]=await Promise.all([SY.flush(),checkUpdate()]);
     const say=({off:'المزامنة غير مفعّلة على هذا التطبيق.',offline:'مفيش نت دلوقتي. نتيجتك محفوظة على جهازك وهتتبعت تلقائياً أول ما النت يرجع.',
-      pending:'لسه ما اتبعتتش (السيرفر مش متاح دلوقتي). هتتحاول تلقائياً.',done:'تم إرسال نتيجتك ✅'})[s.state];
+      pending:'لسه ما اتبعتتش. هتتحاول تلقائياً.',done:'تم إرسال نتيجتك ✅'})[s.state];
     const up=({found:'فيه تحديث جديد للتطبيق — اضغط "تحديث" في الشريط الذهبي.',none:'التطبيق على آخر نسخة ✅'})[u]||'';
     box.className=(s.state==='done'||s.state==='off')&&!s.dead?'hint':'warn';
-    box.innerHTML=[say,s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',up].filter(Boolean).map(esc).join('<br>');
+    box.innerHTML=[say,s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',s.err?'السبب (للمراجعة): '+s.err:'',up].filter(Boolean).map(esc).join('<br>');
     btn.disabled=false; btn.textContent=lbl;
   }
   el.onclick=async(e)=>{
@@ -181,7 +175,7 @@ export async function mount(el,ctx){
     }
     else if(a==='fresh'){ const bid=st.bid, num=st.num; if(sess) flash=await closeSession(sess,'exit'); st.bid=bid; st.num=num; enterRead(bid,num); }
     else if(a==='start'){
-      if(st.s==='read'&&!unlocked.has(ukey())&&Date.now()<st.readUntil) return; // الزر لا يعمل قبل انتهاء العدّاد
+      if(st.s==='read'&&!unlocked.has(ukey())&&Date.now()<st.readUntil) return;
       unlocked.add(ukey()); await startExam();
     }
     else if(a==='quit'){ if(!confirm('لو خرجت دلوقتي، هتتحسب محاولة بدرجتك الحالية. متأكد؟')) return; await finish('exit'); }
@@ -192,7 +186,6 @@ export async function mount(el,ctx){
     await render();
   };
 
-  // عند الفتح: نحمّل الجلسة المحفوظة، ونغلق المنتهية (> ٦ ساعات) تلقائياً
   sess=await S.load();
   if(sess&&sess.profileId!==pid){ await S.clear(); sess=null; }
   if(sess&&S.expired(sess)) flash=await closeSession(sess,'expired');
