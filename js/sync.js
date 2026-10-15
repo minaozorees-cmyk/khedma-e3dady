@@ -1,7 +1,6 @@
-    }// طبقة المزامنة (المرحلة ٥): تقرأ الطابور (outbox) وترسل لـSupabase عبر REST بـfetch فقط (بلا مكتبات/CDN).
+// طبقة المزامنة (المرحلة ٥): تقرأ الطابور (outbox) وترسل لـSupabase عبر REST بـfetch فقط (بلا مكتبات/CDN).
 // معزولة تماماً: تغيير الخدمة = استبدال هذا الملف (+ config.js). كل مهمة idempotent (id ثابت + ON CONFLICT DO NOTHING).
 // المخدوم يدخل Supabase كمستخدم مجهول (anonymous auth)، والملكية تُربط بـauth.uid().
-// (v6) الخادم/المالك: email+password حقيقي → JWT فيه app_metadata.role (staffLogin). الاسترجاع عبر Edge Function "restore" فقط.
 import * as db from './db.js';
 import {FN} from './functions.js';
 import * as A from './auth.js';
