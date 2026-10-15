@@ -10,24 +10,35 @@ const I={mail:'M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2
   user:'M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4Zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10Z',
   chat:'M2.678 11.894a1 1 0 0 1 .287.801 10.97 10.97 0 0 1-.398 2c1.395-.323 2.247-.697 2.634-.893a1 1 0 0 1 .71-.074A8.06 8.06 0 0 0 8 14c3.996 0 7-2.807 7-6 0-3.192-3.004-6-7-6S1 4.808 1 8c0 1.468.617 2.83 1.678 3.894Zm-.493 3.905a21.682 21.682 0 0 1-.713.129c-.2.032-.352-.176-.273-.362a9.68 9.68 0 0 0 .244-.637l.003-.01c.248-.72.45-1.548.524-2.319C.743 11.37 0 9.76 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7-3.582 7-8 7a9.06 9.06 0 0 1-2.347-.306c-.52.263-1.639.742-3.468 1.105Z'};
 const ico=(k)=>`<svg class="lg-ico" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="${I[k]}"></path></svg>`;
+// يصغّر خط خانة الإيميل مع طول النص عشان يفضل ظاهر كله
+function fit(el){
+  const f=()=>{ const n=el.value.length; el.style.fontSize=n>46?'.7rem':n>36?'.8rem':n>28?'.92rem':''; };
+  el.addEventListener('input',f); f();
+}
 function injectCss(){
   if(document.getElementById('lg-css')) return;
   const s=document.createElement('style'); s.id='lg-css';
   s.textContent=`
-.lg-form{display:flex;flex-direction:column;gap:10px;padding:0 2em .4em;background:#171717;border-radius:25px;transition:.4s ease-in-out;color:#fff;max-width:420px;margin:0 auto}
-@media (hover:hover){.lg-form:hover{transform:scale(1.05);border:1px solid #000}}
+.lg-wrap{position:relative;isolation:isolate;width:100%;max-width:460px;margin:0 auto}
+.lg-wrap::before{content:"";position:absolute;inset:-5px;border-radius:20px;background:linear-gradient(-45deg,#ffe08a 0%,#b8860b 100%);z-index:-2;pointer-events:none;transition:transform .6s cubic-bezier(.175,.885,.32,1.275)}
+.lg-wrap::after{content:"";position:absolute;inset:0;border-radius:15px;background:linear-gradient(-45deg,#fff1b8 0%,#d4a017 100%);transform:translate3d(0,0,0) scale(.95);filter:blur(20px);z-index:-1;pointer-events:none;transition:filter .6s}
+.lg-wrap:focus-within::before{transform:rotate(-90deg) scaleX(1.12) scaleY(.9)}
+.lg-wrap:focus-within::after{filter:blur(30px)}
+@media (hover:hover){.lg-wrap:hover::before{transform:rotate(-90deg) scaleX(1.12) scaleY(.9)}.lg-wrap:hover::after{filter:blur(30px)}}
+.lg-form{position:relative;display:flex;flex-direction:column;gap:10px;padding:0 1.1em .4em;background:#000;border-radius:15px;color:#fff}
 .lg-head{text-align:center;margin:1.6em 0 1em;color:#fff;font-size:1.2em;font-weight:700}
 .lg-hint{color:#a8a8a8;font-size:.85rem;text-align:center;margin:-.4em 0 .4em}
-.lg-field{display:flex;align-items:center;justify-content:center;gap:.5em;border-radius:25px;padding:.6em .9em;background:#171717;box-shadow:inset 2px 5px 10px rgb(5,5,5)}
+.lg-field{display:flex;align-items:center;justify-content:center;gap:.5em;border-radius:25px;padding:.6em .8em;background:#000;box-shadow:inset 2px 5px 10px rgb(25,25,25)}
 .lg-field.ta{align-items:flex-start;border-radius:20px}
 .lg-ico{height:1.3em;width:1.3em;fill:#fff;flex:none}
-.lg-in{background:none;border:none;outline:none;width:100%;color:#d3d3d3;font-family:inherit;font-size:1rem;resize:none}
-.lg-in::placeholder{color:#7d7d7d}
+.lg-form .lg-in{flex:1;min-width:0;width:100%;padding:0;margin:0;border:none;border-radius:0;background:none;outline:none;color:#d3d3d3;font-family:inherit;font-size:1rem;resize:none}
+.lg-form .lg-in:focus{border:none;outline:none}
+.lg-form .lg-in::placeholder{color:#7d7d7d}
 .lg-err{color:#ff8a80;font-size:.85rem;min-height:1em;text-align:center}
 .lg-ok{color:#8ee6a0;font-size:.9rem;text-align:center}
 .lg-row{display:flex;justify-content:center;flex-direction:row;flex-wrap:wrap;gap:.5em;margin-top:1.2em}
 .lg-b1,.lg-b2{padding:.6em 1.4em;border-radius:5px;border:none;outline:none;transition:.4s ease-in-out;background:#252525;color:#fff;font-family:inherit;font-weight:700;cursor:pointer}
-.lg-b1:hover,.lg-b2:hover{background:#000;color:#fff}
+.lg-b1:hover,.lg-b2:hover{background:#1a1a1a;color:#fff}
 .lg-b1:disabled{opacity:.6}
 .lg-b3{margin-bottom:1.6em;padding:.5em;border-radius:5px;border:none;outline:none;transition:.4s ease-in-out;background:#252525;color:var(--gold,#e8c468);font-family:inherit;font-weight:700;cursor:pointer}
 .lg-b3:hover{background:var(--gold,#e8c468);color:#171717}
@@ -38,15 +49,16 @@ function injectCss(){
 
 export function showLogin(root,{students=true,onForgot,onNew,onCode,onCancel}){
   injectCss();
-  root.innerHTML=`<div class="gate"><form class="lg-form" id="lform" onsubmit="return false"><p class="lg-head">دخول</p>
+  root.innerHTML=`<div class="gate"><div class="lg-wrap"><form class="lg-form" id="lform" onsubmit="return false"><p class="lg-head">دخول</p>
     <div class="lg-field">${ico('mail')}<input id="le" class="lg-in" type="email" dir="ltr" autocomplete="username" inputmode="email" placeholder="البريد الإلكتروني" aria-label="البريد الإلكتروني"></div>
     <div class="lg-field">${ico('lock')}<input id="lp" class="lg-in" type="password" dir="ltr" autocomplete="current-password" placeholder="كلمة السر" aria-label="كلمة السر"></div>
     <div class="lg-err" id="lerr"></div>
     <div class="lg-row"><button type="button" class="lg-b1" id="lgo">دخول</button>${students?'<button type="button" class="lg-b2" id="lnew">حساب جديد</button>':''}</div>
     ${students?`<div class="lg-or"><span></span><span>أو</span><span></span></div><div class="lg-row" style="margin-top:.6em"><button type="button" class="lg-b2" id="lcode">عندي كود</button></div>`:''}
     <div class="lg-row" style="margin-top:.6em"><button type="button" class="lg-b3" id="lfg">نسيت كلمة السر؟</button></div>
-    ${onCancel?'<div class="lg-row" style="margin-top:0"><button type="button" class="lg-b2" id="lno">رجوع</button></div>':''}</form></div>`;
+    ${onCancel?'<div class="lg-row" style="margin-top:0"><button type="button" class="lg-b2" id="lno">رجوع</button></div>':''}</form></div></div>`;
   const $=(s)=>root.querySelector(s), go=$('#lgo');
+  fit($('#le'));
   const submit=async()=>{
     const email=$('#le').value.trim(), pw=$('#lp').value; $('#lerr').textContent='';
     if(!email||!pw){ $('#lerr').textContent='اكتب البريد الإلكتروني وكلمة السر.'; return; }
@@ -64,15 +76,16 @@ export function showLogin(root,{students=true,onForgot,onNew,onCode,onCancel}){
 
 export function showForgot(root,{onBack}){
   injectCss();
-  root.innerHTML=`<div class="gate"><form class="lg-form" onsubmit="return false"><p class="lg-head">نسيت كلمة السر</p>
+  root.innerHTML=`<div class="gate"><div class="lg-wrap"><form class="lg-form" onsubmit="return false"><p class="lg-head">نسيت كلمة السر</p>
     <p class="lg-hint">اكتب بريدك الإلكتروني وهنراجع طلبك ونرد عليك.</p>
     <div class="lg-field">${ico('mail')}<input id="fe" class="lg-in" type="email" dir="ltr" autocomplete="email" inputmode="email" maxlength="200" placeholder="البريد الإلكتروني" aria-label="البريد الإلكتروني"></div>
     <div class="lg-field">${ico('user')}<input id="fn" class="lg-in" maxlength="120" autocomplete="name" placeholder="الاسم (اختياري)" aria-label="الاسم"></div>
     <div class="lg-field ta">${ico('chat')}<textarea id="fm" class="lg-in" rows="3" maxlength="1000" placeholder="رسالة (اختياري)" aria-label="رسالة"></textarea></div>
     <div class="lg-err" id="ferr"></div><div class="lg-ok" id="fok"></div>
     <div class="lg-row"><button type="button" class="lg-b1" id="fgo">إرسال الطلب</button><button type="button" class="lg-b2" id="fback">رجوع</button></div>
-    <div style="height:1.4em"></div></form></div>`;
+    <div style="height:1.4em"></div></form></div></div>`;
   const $=(s)=>root.querySelector(s), go=$('#fgo');
+  fit($('#fe'));
   $('#fback').onclick=onBack;
   go.onclick=async()=>{
     const contact=$('#fe').value.trim(); $('#ferr').textContent=''; $('#fok').textContent='';
