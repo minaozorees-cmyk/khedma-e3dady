@@ -13,7 +13,7 @@ const REQ_TYPE={password_reset:'استرجاع كلمة السر',new_account:'�
 const PW_AL='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
 function genPw(n=10){ const lim=256-(256%PW_AL.length); let o=''; while(o.length<n){ for(const x of crypto.getRandomValues(new Uint8Array(16))){ if(x<lim&&o.length<n) o+=PW_AL[x%PW_AL.length]; } } return o; }
 const ACT_AR={promote:'ترقية الصفوف',staff_create:'إنشاء حساب',staff_set_role:'تغيير دور',staff_disable:'إيقاف حساب',staff_enable:'تفعيل حساب',soft_delete:'حذف ناعم',restore:'استرجاع',update:'تعديل',hard_delete:'حذف نهائي',INSERT:'إضافة',UPDATE:'تعديل',DELETE:'حذف'};
-const ROLE_AR={student:'مخدوم',servant:'خادم',owner:'مالك'};
+const ROLE_AR={student:'مخدوم',servant:'خادم',priest:'كاهن',owner:'مالك'};
 const fmt=(t)=>t?new Date(t).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'}):'—';
 const fmtD=(t)=>t?new Date(t).toLocaleDateString('ar-EG',{dateStyle:'medium'}):'—';
 const daysLeft=(m)=>Math.ceil(KEEP_DAYS-(Date.now()-new Date(m.deleted_at).getTime())/DAY); // ≤0 = انتهت المهلة
@@ -42,7 +42,7 @@ export async function mount(el,{role}={}){
   if(role!=='owner'){ el.innerHTML='<div class="ph">هذه الصفحة للمالك فقط.</div>'; return; }
   if(!SY.enabled()){ el.innerHTML='<div class="ph">المزامنة غير مفعّلة (js/config.js فاضي).</div>'; return; }
   let t0='m'; try{ if(sessionStorage.getItem('ownerTab')==='r'){ t0='r'; sessionStorage.removeItem('ownerTab'); } }catch(e){}
-  const S={tab:t0,f:'active',q:'',sel:null,members:[],act:new Map(),sess:[],audit:{page:0,tbl:'',rows:[],more:false},req:{rows:[],open:null,done:null,err:''},pend:0};
+  const S={tab:t0,f:'active',q:'',sel:null,members:[],act:new Map(),sess:[],audit:{page:0,tbl:'',rows:[],more:false},req:{rows:[],open:null,done:null,err:''},pend:0,staff:[],staffOk:false};
   const root=document.createElement('div'); root.className='gate'; root.style.maxWidth='720px';
   el.innerHTML=''; el.appendChild(root);
   const $=(s)=>root.querySelector(s);
@@ -236,7 +236,8 @@ export async function mount(el,{role}={}){
     return `<div class="row" style="display:block"><div class="row" style="border:0;padding:0"><b>${esc(r.requester_name||'—')}</b><small>${fmt(r.created_at)}</small></div>
       <div class="k">${esc(REQ_TYPE[r.type]||r.type)} · <span dir="ltr">${esc(r.requester_contact||'—')}</span></div>${r.message?`<div class="hint" style="margin:6px 0">${esc(r.message)}</div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${isPw?`<button class="btn" style="${SB}" data-a="rq-ok" data-id="${r.id}">موافقة</button>`:`<button class="btn" style="${SB}" data-a="rq-fin" data-id="${r.id}">تم</button>`}<button class="x" data-a="rq-no" data-id="${r.id}">رفض</button></div>
-      ${open?`<div style="margin-top:10px"><div class="fld"><label for="rq_em">البريد الإلكتروني للحساب</label><input id="rq_em" dir="ltr" value="${esc(em)}"></div>
+      ${open?`<div style="margin-top:10px">${S.staff.length?`<div class="fld"><label for="rq_sel">اختر حساب الخادم <small>(الأضمن من الكتابة)</small></label><select id="rq_sel"><option value="">— اختر —</option>${S.staff.map(u=>`<option value="${esc(u.email)}"${u.email.toLowerCase()===em.toLowerCase()?' selected':''}>${esc(u.email)} · ${esc(ROLE_AR[u.role]||'كاهن')}</option>`).join('')}</select></div>`:''}
+        <div class="fld"><label for="rq_em">البريد الإلكتروني للحساب</label><input id="rq_em" dir="ltr" value="${esc(em)}"></div>
         <div class="fld"><label for="rq_pw">كلمة السر المؤقتة <small>(٨ أحرف على الأقل)</small></label><input id="rq_pw" dir="ltr" autocomplete="off"></div>
         <div class="err" id="rq_err"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" style="${SB}" data-a="rq-gen">توليد</button><button class="btn" style="${SB}" data-a="rq-run" data-id="${r.id}">تنفيذ</button><button class="btn sec" style="${SB}" data-a="rq-cancel">إلغاء</button></div></div>`:''}</div>`;
@@ -258,7 +259,9 @@ export async function mount(el,{role}={}){
   async function reqAct(a,id){
     const R=S.req;
     try{
-      if(a==='rq-ok'){ R.open=id; paintBody(); return; }
+      if(a==='rq-ok'){ R.open=id; paintBody();
+        if(!S.staffOk){ const r=await SY.staffAdmin({action:'list'}); if(r.ok){ S.staff=r.users.filter(u=>u.role!=='owner'&&u.email).sort((a,b)=>String(a.email).localeCompare(String(b.email))); S.staffOk=true; if(R.open===id) paintBody(); } }
+        return; }
       if(a==='rq-cancel'){ R.open=null; paintBody(); return; }
       if(a==='rq-dismiss'){ R.done=null; paintBody(); return; }
       if(a==='rq-gen'){ $('#rq_pw').value=genPw(); return; }
@@ -297,7 +300,7 @@ export async function mount(el,{role}={}){
     else act(a,id);
   });
   root.addEventListener('input',(e)=>{ if(e.target.id==='q'){ S.q=e.target.value; paintList(); } });
-  root.addEventListener('change',(e)=>{ if(e.target.id==='rsnd'){ try{ localStorage.setItem('reqSound',e.target.checked?'1':'0'); }catch(x){} } if(e.target.id==='atbl'){ S.audit.tbl=e.target.value; S.audit.page=0; loadAudit(); } });
+  root.addEventListener('change',(e)=>{ if(e.target.id==='rq_sel'){ const i=$('#rq_em'); if(i&&e.target.value) i.value=e.target.value; return; } if(e.target.id==='rsnd'){ try{ localStorage.setItem('reqSound',e.target.checked?'1':'0'); }catch(x){} } if(e.target.id==='atbl'){ S.audit.tbl=e.target.value; S.audit.page=0; loadAudit(); } });
 
   addEventListener('lawha:ownertab',function h(){ if(!root.isConnected){ removeEventListener('lawha:ownertab',h); return; } S.tab='r'; paintTabs(); paintBody(); loadReq(); });
   paint(); await load(); if(S.tab==='r') loadReq(); else loadReqCount();
