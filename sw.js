@@ -5,7 +5,6 @@ const SHELL=['./','index.html','manifest.json','css/app.css','css/fonts.css',
  'modules/books/index.js','modules/agpeya/index.js','modules/liturgy/index.js','modules/confession/index.js',
  'books/index.json','pages/servant.html','pages/generator.html',
  'icons/icon-192.png','icons/icon-512.png','icons/maskable-512.png',
- // اختيارية: لو الملف غير موجود لا يفشل التثبيت
  'fonts/Cairo-Variable.woff2','fonts/Tajawal-Regular.woff2','fonts/Tajawal-Bold.woff2','fonts/Amiri-Regular.woff2','fonts/Amiri-Bold.woff2',
  'fonts/JetBrainsMono-Regular.woff2','fonts/JetBrainsMono-Bold.woff2',
  'lib/html2canvas.min.js','lib/jspdf.umd.min.js'];
