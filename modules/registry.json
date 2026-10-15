@@ -1,158 +1,34 @@
 {
-  "version": 1,
   "modules": [
-    {
-      "id": "board",
-      "title": "لوحة التميز",
-      "icon": "🏆",
-      "roles": [
-        "servant",
-        "priest",
-        "owner"
-      ],
-      "type": "page",
-      "entry": "pages/servant.html",
-      "enabled": true
-    },
-    {
-      "id": "generator",
-      "title": "أداة التوليد",
-      "icon": "🛠️",
-      "roles": [
-        "owner"
-      ],
-      "type": "page",
-      "entry": "pages/generator.html",
-      "enabled": true
-    },
     {
       "id": "books",
       "title": "الأسفار",
       "icon": "📖",
-      "roles": [
-        "student",
-        "servant",
-        "priest",
-        "owner"
-      ],
-      "type": "module",
+      "roles": ["student"],
       "entry": "modules/books/index.js",
-      "enabled": true
-    },
-    {
-      "id": "messages",
-      "title": "الرسائل",
-      "icon": "💬",
-      "roles": [
-        "student",
-        "servant",
-        "priest",
-        "owner"
-      ],
-      "type": "module",
-      "entry": "modules/messages/index.js",
-      "enabled": true
-    },
-    {
-      "id": "followup",
-      "title": "الافتقاد",
-      "icon": "🤝",
-      "roles": [
-        "servant",
-        "priest",
-        "owner"
-      ],
-      "type": "module",
-      "entry": "modules/followup/index.js",
-      "enabled": true
-    },
-    {
-      "id": "attendance",
-      "title": "الحضور",
-      "icon": "🗓️",
-      "roles": [
-        "servant",
-        "priest",
-        "owner"
-      ],
-      "type": "module",
-      "entry": "modules/attendance/index.js",
-      "enabled": true
-    },
-    {
-      "id": "members",
-      "title": "لوحة المالك",
-      "icon": "🛡️",
-      "roles": [
-        "owner"
-      ],
-      "type": "module",
-      "entry": "modules/owner/members.js",
-      "enabled": true
-    },
-    {
-      "id": "staff",
-      "title": "حسابات الطاقم",
-      "icon": "👥",
-      "roles": [
-        "owner"
-      ],
-      "type": "module",
-      "entry": "modules/owner/staff.js",
-      "enabled": true
-    },
-    {
-      "id": "tools",
-      "title": "أدوات المالك",
-      "icon": "🧰",
-      "roles": [
-        "owner"
-      ],
-      "type": "module",
-      "entry": "modules/owner/tools.js",
-      "enabled": true
-    },
-    {
-      "id": "owner",
-      "title": "إدارة الأسفار",
-      "icon": "📤",
-      "roles": [
-        "owner"
-      ],
-      "type": "module",
-      "entry": "modules/owner/index.js",
       "enabled": true
     },
     {
       "id": "agpeya",
       "title": "الأجبية",
       "icon": "🙏",
-      "roles": [
-        "student"
-      ],
-      "type": "module",
+      "roles": ["student"],
       "entry": "modules/agpeya/index.js",
       "enabled": true
     },
     {
       "id": "liturgy",
       "title": "القداسات",
-      "icon": "⛪",
-      "roles": [
-        "student"
-      ],
-      "type": "module",
+      "icon": "🍷",
+      "roles": ["student"],
       "entry": "modules/liturgy/index.js",
       "enabled": true
     },
     {
       "id": "confession",
       "title": "الاعتراف",
-      "icon": "📅",
-      "roles": [
-        "student"
-      ],
-      "type": "module",
+      "icon": "💬",
+      "roles": ["student"],
       "entry": "modules/confession/index.js",
       "enabled": true
     },
@@ -160,24 +36,116 @@
       "id": "me",
       "title": "حسابي",
       "icon": "👤",
-      "roles": [
-        "student"
-      ],
-      "type": "module",
+      "roles": ["student"],
       "entry": "modules/me/index.js",
+      "enabled": true
+    },
+    {
+      "id": "messages",
+      "title": "الرسائل",
+      "icon": "💌",
+      "roles": ["student"],
+      "entry": "modules/messages/index.js",
+      "enabled": true
+    },
+    {
+      "id": "messages_staff",
+      "title": "الرسائل",
+      "icon": "💌",
+      "roles": ["servant", "priest", "owner"],
+      "entry": "modules/messages/staff.js",
+      "enabled": true
+    },
+    {
+      "id": "followup",
+      "title": "الافتقاد",
+      "icon": "🤝",
+      "roles": ["servant", "priest", "owner"],
+      "entry": "modules/followup/index.js",
+      "enabled": true
+    },
+    {
+      "id": "attendance",
+      "title": "الحضور",
+      "icon": "🗓️",
+      "roles": ["servant", "priest", "owner"],
+      "entry": "modules/attendance/index.js",
       "enabled": true
     },
     {
       "id": "account",
       "title": "كلمة السر",
       "icon": "🔐",
-      "roles": [
-        "servant",
-        "priest",
-        "owner"
-      ],
-      "type": "module",
+      "roles": ["servant", "priest", "owner"],
       "entry": "modules/account/index.js",
+      "enabled": true
+    },
+    {
+      "id": "owner_index",
+      "title": "رفع الأسفار",
+      "icon": "📚",
+      "roles": ["owner"],
+      "entry": "modules/owner/index.js",
+      "enabled": true
+    },
+    {
+      "id": "owner_members",
+      "title": "لوحة المالك",
+      "icon": "🛡️",
+      "roles": ["owner"],
+      "entry": "modules/owner/members.js",
+      "enabled": true
+    },
+    {
+      "id": "owner_staff",
+      "title": "حسابات الطاقم",
+      "icon": "👥",
+      "roles": ["owner"],
+      "entry": "modules/owner/staff.js",
+      "enabled": true
+    },
+    {
+      "id": "owner_tools",
+      "title": "أدوات المالك",
+      "icon": "🧰",
+      "roles": ["owner"],
+      "entry": "modules/owner/tools.js",
+      "enabled": true
+    },
+    {
+      "id": "decode",
+      "title": "فك الكود",
+      "icon": "🔐",
+      "roles": ["servant", "priest", "owner"],
+      "type": "page",
+      "entry": "pages/servant.html#decode",
+      "enabled": true
+    },
+    {
+      "id": "board",
+      "title": "لوحة المتميزين",
+      "icon": "🏆",
+      "roles": ["servant", "priest", "owner"],
+      "type": "page",
+      "entry": "pages/servant.html#board",
+      "enabled": true
+    },
+    {
+      "id": "live",
+      "title": "النتائج المباشرة",
+      "icon": "📡",
+      "roles": ["servant", "priest", "owner"],
+      "type": "page",
+      "entry": "pages/servant.html#live",
+      "enabled": true
+    },
+    {
+      "id": "generator",
+      "title": "مولّد الامتحانات",
+      "icon": "📝",
+      "roles": ["owner"],
+      "type": "page",
+      "entry": "pages/generator.html",
       "enabled": true
     }
   ]
