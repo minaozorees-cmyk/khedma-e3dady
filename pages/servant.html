@@ -471,6 +471,7 @@
   .live-ctl select,.live-ctl input{font-family:'Cairo',sans-serif;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:.45rem .6rem;min-width:0;max-width:100%}
   .live-ctl button,.live-exp button{font-family:'Cairo',sans-serif;font-weight:700;font-size:.8rem;background:rgba(88,166,255,.1);color:var(--blue);border:1px solid rgba(88,166,255,.35);border-radius:8px;padding:.45rem .8rem;cursor:pointer}
   .live-ctl button.on{background:var(--blue);color:#0d1117}
+  .live-chbtn{font-family:'Cairo',sans-serif;font-size:.8rem;font-weight:700;background:rgba(88,166,255,.12);color:var(--blue);border:1px solid rgba(88,166,255,.3);border-radius:8px;padding:.35rem .9rem;cursor:pointer}
   .live-sum{text-align:center;color:var(--text2);font-size:.8rem;margin-bottom:.4rem}
   .live-wrap{overflow-x:auto;background:#0d1e38;border:1px solid var(--border);border-radius:12px}
   .live-tbl{width:100%;border-collapse:collapse;font-size:.85rem}
@@ -1209,6 +1210,7 @@ body .btn-row .btn-manual,body .btn-row .btn-clear-input{flex:1 1 calc(50% - 5px
     <div class="live-ctl">
       <select id="liveGrade" aria-label="الصف"><option value="">كل الصفوف</option></select>
       <select id="liveBook" aria-label="السفر"><option value="">كل الأسفار</option></select>
+      <select id="liveGender" aria-label="الجنس"><option value="">ولد وبنت</option><option value="ولد">ولد</option><option value="بنت">بنت</option></select>
       <input id="liveQ" type="search" placeholder="بحث بالاسم" autocomplete="off">
       <button data-lv="rank" class="on">🏆 الترتيب العام</button>
       <button data-lv="commit">📋 الالتزام</button>
@@ -2872,7 +2874,7 @@ const livePct=(s,t)=>t>0?Math.round(s/t*100):0;
 const liveCollator=new Intl.Collator('ar');
 function liveFilter(rows,f){
   const q=(f.q||'').trim().toLowerCase();
-  return rows.filter(r=>(!f.grade||r.grade===f.grade)&&(!f.book||r.book_id===f.book)&&(!q||String(r.name).toLowerCase().includes(q)));
+  return rows.filter(r=>(!f.grade||r.grade===f.grade)&&(!f.book||r.book_id===f.book)&&(!f.gender||r.gender===f.gender)&&(!q||String(r.name).toLowerCase().includes(q)));
 }
 function liveRank(rows){
   const m=new Map();
@@ -2886,9 +2888,9 @@ function liveRank(rows){
 function liveDetail(rows){
   return [...rows].sort((a,b)=>liveCollator.compare(a.name,b.name)||liveCollator.compare(liveTitle(a),liveTitle(b))||a.chapter_num-b.chapter_num);
 }
-const LIVE_HEAD=['الاسم','الصف','السفر','الإصحاح','الدرجة','من','النسبة %','تاريخ أول محاولة','عدد المحاولات'];
+const LIVE_HEAD=['الاسم','الصف','السفر','الإصحاح','الدرجة','من','النسبة %','تاريخ أول محاولة','عدد المحاولات','الوقت (ثانية)'];
 const liveCells=r=>[liveSafe(r.name),liveSafe(r.grade),liveSafe(liveTitle(r)),r.chapter_num,r.first_score,r.first_total,livePct(r.first_score,r.first_total),
-  r.first_attempted_at?new Date(r.first_attempted_at).toLocaleDateString('en-CA'):'',r.attempts];
+  r.first_attempted_at?new Date(r.first_attempted_at).toLocaleDateString('en-CA'):'',r.attempts,r.first_duration_sec>0?r.first_duration_sec:''];
 function liveCsvText(rows){
   const q=c=>`"${String(c).replace(/"/g,'""')}"`;
   return [LIVE_HEAD,...liveDetail(rows).map(liveCells)].map(r=>r.map(q).join(',')).join('\r\n');
@@ -2907,7 +2909,7 @@ function liveCopyText(rows){
 const LIVE={rows:[],at:0,fromCache:true,error:null,truncated:false,view:'rank',busy:false,loaded:false};
 const liveEl=id=>document.getElementById(id);
 let liveSY=null;
-const liveFilters=()=>({grade:liveEl('liveGrade').value,book:liveEl('liveBook').value,q:liveEl('liveQ').value});
+const liveFilters=()=>({grade:liveEl('liveGrade').value,book:liveEl('liveBook').value,gender:liveEl('liveGender').value,q:liveEl('liveQ').value});
 function liveFiltered(){ return liveFilter(LIVE.rows,liveFilters()); }
 function liveFillSelects(){
   const fill=(id,pairs,label)=>{ const el=liveEl(id), cur=el.value; el.innerHTML=`<option value="">${label}</option>`+pairs.map(([v,t])=>`<option value="${liveEsc(v)}">${liveEsc(t)}</option>`).join(''); el.value=pairs.some(x=>x[0]===cur)?cur:''; };
@@ -2933,8 +2935,8 @@ function liveRender(){
   document.querySelectorAll('[data-lv]').forEach(b=>b.classList.toggle('on',b.dataset.lv===LIVE.view));
   if(!rows.length){ wrap.innerHTML=`<div class="live-empty">${LIVE.loaded?'لا توجد نتائج مطابقة':'…'}</div>`; return; }
   if(LIVE.view==='detail'){
-    wrap.innerHTML=`<table class="live-tbl"><thead><tr><th>الاسم</th><th>الصف</th><th>السفر</th><th>إصحاح</th><th>الدرجة</th><th>النسبة</th><th>المحاولات</th></tr></thead><tbody>`+
-      liveDetail(rows).map(r=>`<tr><td>${liveEsc(r.name)}</td><td>${liveEsc(r.grade)}</td><td>${liveEsc(liveTitle(r))}</td><td>${r.chapter_num}</td><td>${r.first_score}/${r.first_total}</td><td>${livePct(r.first_score,r.first_total)}%</td><td>${r.attempts}</td></tr>`).join('')+`</tbody></table>`;
+    wrap.innerHTML=`<table class="live-tbl"><thead><tr><th>الاسم</th><th>الصف</th><th>السفر</th><th>إصحاح</th><th>الدرجة</th><th>النسبة</th><th>الوقت</th><th>المحاولات</th></tr></thead><tbody>`+
+      liveDetail(rows).map(r=>`<tr><td>${liveEsc(r.name)}</td><td>${liveEsc(r.grade)}</td><td>${liveEsc(liveTitle(r))}</td><td>${r.chapter_num}</td><td>${r.first_score}/${r.first_total}</td><td>${livePct(r.first_score,r.first_total)}%</td><td>${fmt(r.first_duration_sec>0?r.first_duration_sec:0)}</td><td>${r.attempts}</td></tr>`).join('')+`</tbody></table>`;
   } else wrap.innerHTML=liveBoard(rows,LIVE.view);
 }
 // v9.12: نفس شكل لوحة المتميزين (منصة + ترتيب + التزام + مجمع) من صفوف السيرفر. بلا وقت لأنه غير مخزَّن على السيرفر.
@@ -2951,7 +2953,7 @@ function liveStudents(rows){
   const stored={};
   rows.forEach(r=>{
     const x=stored[r.profile_id]||(stored[r.profile_id]={name:liveEsc(r.name),grade:{key:liveEsc(r.grade),label:liveEsc(r.grade)},chapters:{}}); // تهريب HTML: أسماء من السيرفر
-    x.chapters[String(r.chapter_num)]={score:r.first_score,total:r.first_total,time:0};
+    x.chapters[String(r.chapter_num)]={score:r.first_score,total:r.first_total,time:r.first_duration_sec>0?r.first_duration_sec:0};
   });
   const allChapters=[...new Set(rows.map(r=>Number(r.chapter_num)))].filter(c=>c>0).sort((a,b)=>a-b);
   return {allChapters,students:sortStudents(buildStudents(stored,allChapters))};
@@ -2959,6 +2961,7 @@ function liveStudents(rows){
 function liveBoard(allRows,view){
   const sc=liveBoardScope(allRows), {allChapters,students}=liveStudents(sc.rows);
   if(!students.length) return '<div class="live-empty">لا توجد نتائج مطابقة</div>';
+  const noTime=!sc.rows.some(r=>r.first_duration_sec>0); // نتائج قديمة بلا وقت → نخفي عمود الوقت
   const full=students.filter(s=>s.isFullCommit).length, miss=students.length-full;
   const avgP=Math.round(students.reduce((a,s)=>a+s.pct,0)/students.length);
   const avgC=Math.round(students.reduce((a,s)=>a+s.commitPct,0)/students.length);
@@ -2978,7 +2981,11 @@ function liveBoard(allRows,view){
       <div class="wa-card-body">${buildSummaryTable(students,allChapters)}</div>
       <div class="wa-card-footer"><div class="wa-footer-stat">متوسط الدرجات: <strong>${avgP}%</strong> &nbsp;·&nbsp; التزام الفريق: <strong>${avgC}%</strong> &nbsp;·&nbsp; ملتزم كامل: <strong>${full}</strong> &nbsp;·&nbsp; إصحاحات: <strong>${allChapters.length}</strong></div></div></div>`;
   } else {
-    h+=buildPodium(students,allChapters,true)+`<div class="table-wrap">${buildRankTable(students,allChapters,true)}</div>`;
+    if(!noTime){ // متوسط وقت كل إصحاح (مخفي افتراضياً زي اللوحة الأصلية)
+      const pills=allChapters.map(c=>{ const t=sc.rows.filter(r=>Number(r.chapter_num)===c&&r.first_duration_sec>0).map(r=>r.first_duration_sec); return `<div class="ch-stat-pill"><div class="ch-num">${t.length?fmt(Math.round(t.reduce((a,b)=>a+b,0)/t.length)):'—'}</div><div class="ch-lbl">متوسط وقت<br>إصحاح ${c}</div></div>`; }).join('');
+      h+=`<div style="margin-bottom:.8rem;"><button id="liveChBtn" class="live-chbtn">⏱ إظهار متوسط وقت الإصحاحات</button><div id="liveChBar" class="ch-stats-bar" style="display:none;margin-top:.6rem;">${pills}</div></div>`;
+    }
+    h+=buildPodium(students,allChapters,noTime)+`<div class="table-wrap">${buildRankTable(students,allChapters,noTime)}</div>`;
   }
   return h;
 }
@@ -3019,9 +3026,10 @@ async function livePdf(){
   }catch(e){ showToast('حدث خطأ أثناء التصدير: '+e.message,'error'); }
 }
 (function liveInit(){
-  ['liveGrade','liveBook'].forEach(id=>liveEl(id).addEventListener('change',liveRender));
+  ['liveGrade','liveBook','liveGender'].forEach(id=>liveEl(id).addEventListener('change',liveRender));
   liveEl('liveQ').addEventListener('input',liveRender);
   liveEl('liveRefresh').addEventListener('click',()=>liveLoad(true));
+  liveEl('liveTableWrap').addEventListener('click',e=>{ if(!e.target.closest('#liveChBtn')) return; const bar=liveEl('liveChBar'), on=bar.style.display==='none'; bar.style.display=on?'flex':'none'; liveEl('liveChBtn').textContent=on?'⏱ إخفاء متوسط وقت الإصحاحات':'⏱ إظهار متوسط وقت الإصحاحات'; });
   document.querySelectorAll('[data-lv]').forEach(b=>b.addEventListener('click',()=>{ LIVE.view=b.dataset.lv; liveRender(); }));
   document.querySelectorAll('[data-lx]').forEach(b=>b.addEventListener('click',()=>liveExport(b.dataset.lx)));
   addEventListener('online',()=>{ if(liveEl('panel-live').classList.contains('active')) liveLoad(true); });
