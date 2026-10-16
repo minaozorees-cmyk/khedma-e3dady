@@ -184,3 +184,16 @@ details summary{cursor:pointer;color:var(--gold)}
 @media(max-width:380px){.topbar-section{display:none}.chgrid{grid-template-columns:repeat(3,1fr)}}
 @media(prefers-reduced-motion:reduce){main{animation:none}*{transition:none!important}#stars-canvas{display:none}}
 @media print{.topbar,.sidebar,.sidebar-overlay,#stars-canvas{display:none!important}body{background:#fff;color:#000}}
+
+/* آية اليوم */
+#votd{position:relative;z-index:1}
+#votd .vt-card{margin:8px 12px;padding:10px 14px;border:1px solid var(--line);border-inline-start:3px solid var(--gold);border-radius:12px;background:var(--bg-3);color:var(--ink)}
+#votd .vt-head{display:flex;align-items:center;justify-content:space-between;font-size:.8rem;color:var(--gold-2)}
+[data-theme=light] #votd .vt-head{color:var(--gold-dim)}
+#votd .vt-head button{background:transparent;border:0;color:inherit;font-size:1rem;cursor:pointer;padding:2px 6px}
+#votd .vt-t{margin:6px 0 2px;font-size:.98rem;line-height:1.8}
+#votd .vt-r{margin:0;font-size:.8rem;color:var(--gold-2);font-weight:700}
+[data-theme=light] #votd .vt-r{color:var(--gold-dim)}
+#votd .vt-m{margin:6px 0 0;font-size:.82rem;color:var(--ink-2);line-height:1.7}
+#votd .vt-bar{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:5px 12px;background:transparent;border:0;border-bottom:1px solid var(--line);color:var(--gold-2);font-family:inherit;font-size:.78rem;cursor:pointer}
+[data-theme=light] #votd .vt-bar{color:var(--gold-dim)}
