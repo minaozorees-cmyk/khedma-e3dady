@@ -1,7 +1,7 @@
 // غيّر VERSION مع كل تحديث ليصل للأجهزة
-const VERSION='v9.18', CACHE='lawha-'+VERSION;
+const VERSION='v9.19', CACHE='lawha-'+VERSION;
 const SHELL=['./','index.html','manifest.json','css/app.css','css/fonts.css',
- 'js/db.js','js/auth.js','js/router.js','js/register.js','js/consts.js','js/dates.js','js/store.js','js/reminders.js','js/backup.js','js/books.js','js/book-schema.js','js/exam-engine.js','js/results.js','js/sync.js','js/config.js','js/exam-session.js','js/login.js','js/functions.js','js/sapi.js','js/inbox.js','js/update.js','js/req-watch.js','js/ui.js','js/votd.js','js/votd-data.js','modules/me/index.js','modules/owner/index.js','modules/owner/members.js','modules/account/index.js','modules/messages/index.js','modules/messages/staff.js','modules/followup/index.js','modules/attendance/index.js','modules/owner/staff.js','modules/owner/tools.js','modules/registry.json',
+ 'js/db.js','js/auth.js','js/router.js','js/register.js','js/consts.js','js/dates.js','js/store.js','js/reminders.js','js/backup.js','js/books.js','js/book-schema.js','js/exam-engine.js','js/results.js','js/sync.js','js/config.js','js/exam-session.js','js/login.js','js/functions.js','js/sapi.js','js/inbox.js','js/update.js','js/req-watch.js','js/ui.js','js/votd.js','js/welcome.js','js/votd-data.js','modules/me/index.js','modules/owner/index.js','modules/owner/members.js','modules/account/index.js','modules/messages/index.js','modules/messages/staff.js','modules/followup/index.js','modules/attendance/index.js','modules/owner/staff.js','modules/owner/tools.js','modules/registry.json',
  'modules/books/index.js','modules/agpeya/index.js','modules/liturgy/index.js','modules/confession/index.js',
  'books/index.json','pages/servant.html','pages/generator.html',
  'icons/icon-192.png','icons/icon-512.png','icons/maskable-512.png',
