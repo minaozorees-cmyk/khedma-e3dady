@@ -7,6 +7,7 @@ import {collect,notifyLocal} from './reminders.js';
 import * as SY from './sync.js';
 import {showLogin,showForgot} from './login.js';
 import {setSection,setNavVisible} from './ui.js';
+import {showVotd} from './votd.js';
 import * as RW from './req-watch.js';
 import * as IB from './inbox.js';
 const $=(s)=>document.querySelector(s);
@@ -38,7 +39,7 @@ function buildNav(){
 // شاشة الدخول الموحّدة. hasProfile=true: الجهاز عليه ملف مخدوم، فنخفي أزرار "حساب جديد/عندي كود".
 function renderLogin(hasProfile){
   const main=$('main'); main.onclick=main.onchange=main.oninput=null;
-  setNavVisible(false); setSection('دخول');
+  setNavVisible(false); showVotd(false); setSection('دخول');
   showLogin(main,{
     students:!hasProfile,
     onForgot:()=>{ setSection('نسيت كلمة السر'); showForgot(main,{onBack:()=>renderLogin(hasProfile)}); },
@@ -47,12 +48,12 @@ function renderLogin(hasProfile){
   });
 }
 function openGate(initial){
-  setSection('حساب جديد');
+  showVotd(false); setSection('حساب جديد');
   showGate($('main'),()=>{ buildNav(); const v=visible(); history.replaceState(null,'','#/'+(v[0]?v[0].id:'')); route(); },{initial,onBack:()=>renderLogin(false)});
 }
 async function forcePw(){
   const main=$('main'); main.onclick=main.onchange=main.oninput=null;
-  setNavVisible(false); setSection('تغيير كلمة السر'); main.innerHTML='';
+  setNavVisible(false); showVotd(false); setSection('تغيير كلمة السر'); main.innerHTML='';
   try{ const mod=await import('../modules/account/index.js'); await mod.mount(main,{forced:true,onDone:()=>route()}); }
   catch(e){ main.innerHTML='<div class="ph">تعذّر تحميل الصفحة.</div>'; }
 }
@@ -60,7 +61,7 @@ async function route(){
   refreshReminders();
   if(role==='student' && !(await activeProfile())){ renderLogin(false); return; }
   if(role!=='student'){ const st=await db.get('staff'); if(st&&st.mustChange){ forcePw(); return; } }   // كلمة سر مؤقتة ⇒ تغيير إجباري
-  setNavVisible(true);
+  setNavVisible(true); showVotd(true);
   const v=visible(), id=location.hash.replace('#/','')||land();
   const m=v.find(x=>x.id===id)||v[0], main=$('main');
   main.onclick=main.onchange=main.oninput=null; // لا تبقى معالجات وحدة سابقة
