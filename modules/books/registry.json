@@ -1,0 +1,232 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "id": "board",
+      "title": "لوحة التميز",
+      "icon": "🏆",
+      "roles": [
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "page",
+      "entry": "pages/servant.html",
+      "enabled": true
+    },
+    {
+      "id": "live",
+      "title": "النتائج المباشرة",
+      "icon": "📡",
+      "roles": [
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "page",
+      "entry": "pages/servant.html#live",
+      "enabled": true
+    },
+    {
+      "id": "generator",
+      "title": "أداة التوليد",
+      "icon": "🛠️",
+      "roles": [
+        "owner"
+      ],
+      "type": "page",
+      "entry": "pages/generator.html",
+      "enabled": true
+    },
+    {
+      "id": "books",
+      "title": "الأسفار",
+      "icon": "📖",
+      "roles": [
+        "student",
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/books/index.js",
+      "enabled": true
+    },
+    {
+      "id": "codes",
+      "title": "أكواد الإصحاحات",
+      "icon": "🔑",
+      "roles": [
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/books/codes.js",
+      "enabled": true
+    },
+    {
+      "id": "messages",
+      "title": "الرسائل",
+      "icon": "💬",
+      "roles": [
+        "student",
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/messages/index.js",
+      "enabled": true
+    },
+    {
+      "id": "followup",
+      "title": "الافتقاد",
+      "icon": "🤝",
+      "roles": [
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/followup/index.js",
+      "enabled": true
+    },
+    {
+      "id": "attendance",
+      "title": "الحضور",
+      "icon": "🗓️",
+      "roles": [
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/attendance/index.js",
+      "enabled": true
+    },
+    {
+      "id": "members",
+      "title": "لوحة المالك",
+      "icon": "🛡️",
+      "roles": [
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/owner/members.js",
+      "enabled": true
+    },
+    {
+      "id": "staff",
+      "title": "حسابات الطاقم",
+      "icon": "👥",
+      "roles": [
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/owner/staff.js",
+      "enabled": true
+    },
+    {
+      "id": "tools",
+      "title": "أدوات المالك",
+      "icon": "🧰",
+      "roles": [
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/owner/tools.js",
+      "enabled": true
+    },
+    {
+      "id": "votd",
+      "title": "آية اليوم",
+      "icon": "🕊️",
+      "roles": [
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/owner/votd.js",
+      "enabled": true
+    },
+    {
+      "id": "access",
+      "title": "مواعيد الإصحاحات",
+      "icon": "🔓",
+      "roles": [
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/owner/access.js",
+      "enabled": true
+    },
+    {
+      "id": "owner",
+      "title": "إدارة الأسفار",
+      "icon": "📤",
+      "roles": [
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/owner/index.js",
+      "enabled": true
+    },
+    {
+      "id": "agpeya",
+      "title": "الأجبية",
+      "icon": "🙏",
+      "roles": [
+        "student"
+      ],
+      "type": "module",
+      "entry": "modules/agpeya/index.js",
+      "enabled": true
+    },
+    {
+      "id": "liturgy",
+      "title": "القداسات",
+      "icon": "⛪",
+      "roles": [
+        "student"
+      ],
+      "type": "module",
+      "entry": "modules/liturgy/index.js",
+      "enabled": true
+    },
+    {
+      "id": "confession",
+      "title": "الاعتراف",
+      "icon": "📅",
+      "roles": [
+        "student"
+      ],
+      "type": "module",
+      "entry": "modules/confession/index.js",
+      "enabled": true
+    },
+    {
+      "id": "me",
+      "title": "حسابي",
+      "icon": "👤",
+      "roles": [
+        "student"
+      ],
+      "type": "module",
+      "entry": "modules/me/index.js",
+      "enabled": true
+    },
+    {
+      "id": "account",
+      "title": "كلمة السر",
+      "icon": "🔐",
+      "roles": [
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/account/index.js",
+      "enabled": true
+    }
+  ]
+}
