@@ -4,8 +4,8 @@ let last='', timer=null;
 const esc=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function text(role,name){
   if(role==='student') return name?`سلام ونعمة يا ${name} 🌿 ربنا يبارك يومك ويفتح قلبك لكلمته.`:'سلام ونعمة 🌿 ربنا يبارك يومك ويفتح قلبك لكلمته.';
-  if(role==='priest') return 'سلام ونعمة يا أبونا 🙏 ربنا يحفظ رعايتك وخدمتك.';
-  return 'أهلاً بيك، تعبك في الخدمة مش ضايع قدام ربنا.';   // خادم / مالك: حسابات الطاقم لا تحمل اسماً
+  if(role==='priest') return `سلام ونعمة يا أبونا${name?' '+name:''} 🙏 ربنا يحفظ رعايتك وخدمتك.`;
+  return name?`أهلاً يا ${name}، تعبك في الخدمة مش ضايع قدام ربنا.`:'أهلاً بيك، تعبك في الخدمة مش ضايع قدام ربنا.';
 }
 export function hideWelcome(){ clearTimeout(timer); const e=document.getElementById('welcome'); if(e) e.remove(); }
 export function resetWelcome(){ last=''; hideWelcome(); }
