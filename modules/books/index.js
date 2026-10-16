@@ -4,19 +4,21 @@ import * as R from '../../js/results.js';
 import * as A from '../../js/auth.js';
 import * as S from '../../js/exam-session.js';
 import * as SY from '../../js/sync.js';
+import * as AC from '../../js/access.js';
 import {checkUpdate} from '../../js/update.js';
 import {esc} from '../../js/consts.js';
 import {n} from '../../js/dates.js';
 
 const AR='٠١٢٣٤٥٦٧٨٩';
 const mmss=(ms)=>{ const s=Math.ceil(Math.max(0,ms)/1000); return (n(Math.floor(s/60))+':'+String(s%60).padStart(2,'0')).replace(/\d/g,d=>AR[d]); };
-const NEED_CHAP=['start','ans','pick','unpick','next','quit'];
+const NEED_CHAP=['start','ans','pick','unpick','next','quit','redeem'];
+const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 
 export async function mount(el,ctx){
   el.innerHTML='<div class="ph">جارٍ التحميل…</div>';
   const {books,problems}=await loadAll();
   const prof=await A.activeProfile(), pid=prof?prof.id:'local', nm=esc((prof&&prof.name.split(' ')[0])||'حبيبي');
-  const staff=ctx.role!=='student', isStudent=ctx.role==='student'&&!!prof;
+  const staff=ctx.role!=='student', isStudent=ctx.role==='student'&&!!prof, gated=ctx.role==='student'; // v9.21: القفل بالمواعيد على المخدوم فقط
   let st={s:'books'}, flash='', tick=null, sess=null;
   const unlocked=new Set(); // إصحاحات انتهى عدّاد قراءتها في هذه الجلسة
   const book=()=>books.find(b=>b.id===st.bid);
@@ -85,8 +87,17 @@ export async function mount(el,ctx){
     },
     async chapters(){
       const at=await R.all(), b=book();
-      return `<div class="gate"><h3 class="ttl">${esc(b.title)}</h3><div class="hint">الرقم تحت كل إصحاح = درجة أول محاولة (المعتمدة)</div><div class="chgrid">${b.chapters.map(c=>{ const s=R.summary(at,b.id,c.chapterNum);
-        return `<button class="chb${s.n?' done':''}" data-a="chap" data-n="${c.chapterNum}">${n(c.chapterNum)}<small>${s.first?n(s.first.score)+'/'+n(s.first.total):'—'}</small></button>`; }).join('')}</div>${back('toBooks','رجوع للأسفار')}</div>`;
+      return `<div class="gate"><h3 class="ttl">${esc(b.title)}</h3><div class="hint">الرقم تحت كل إصحاح = درجة أول محاولة (المعتمدة)</div><div class="chgrid">${b.chapters.map(c=>{ const s=R.summary(at,b.id,c.chapterNum), lk=gated&&AC.isLocked(b.id,c.chapterNum);
+        return `<button class="chb${s.n?' done':''}" data-a="chap" data-n="${c.chapterNum}">${n(c.chapterNum)}<small>${lk?'🔒':s.first?n(s.first.score)+'/'+n(s.first.total):'—'}</small></button>`; }).join('')}</div>${gated&&b.chapters.some(c=>AC.isLocked(b.id,c.chapterNum))?'<div class="hint">🔒 = مقفول لحد ميعاده، أو بكود من الخادم</div>':''}${back('toBooks','رجوع للأسفار')}</div>`;
+    },
+    async locked(){
+      const c=chap(), lk=AC.lock(st.bid,st.num), D=(t)=>new Date(t).toLocaleString('ar-EG',{dateStyle:'full',timeStyle:'short'});
+      const msg=lk.why==='before'?`الإصحاح ده بيفتح ${D(lk.at)}.`:`الإصحاح ده اتقفل ${D(lk.at)}.`;
+      return `<div class="gate"><h3 class="ttl">🔒 ${esc(book().title)} — إصحاح ${n(c.chapterNum)}</h3>
+        <div class="card2"><p class="ver">${esc(msg)}</p><div class="hint">لو معاك كود فتح من الخادم اكتبه هنا.</div>
+        <div class="fld" style="margin-top:10px"><label for="cc">كود الفتح</label><input id="cc" dir="ltr" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" style="text-align:center;letter-spacing:3px;text-transform:uppercase"></div>
+        <button class="btn" data-a="redeem">فتح بالكود</button><div class="err" id="ce"></div></div>
+        ${back('toChap','رجوع للإصحاحات')}</div>`;
     },
     async resume(){
       const f=findCh(sess.bid,sess.num), done=answeredCount(f.c.questions,sess.ans||[]);
@@ -142,8 +153,9 @@ export async function mount(el,ctx){
   async function render(){
     clearInterval(tick);
     // حماية: لو تغيّر أو اختفى السفر/الإصحاح (بعد إعادة تحميل) نرجع لقائمة آمنة بدل ما نرمي خطأ
-    if(['chapters','read','exam','result','resume'].includes(st.s)&&!book()) st={s:'books'};
-    if(['read','exam','result'].includes(st.s)&&!chap()) st=book()?{s:'chapters',bid:st.bid}:{s:'books'};
+    if(['chapters','read','exam','result','resume','locked'].includes(st.s)&&!book()) st={s:'books'};
+    if(['read','exam','result','locked'].includes(st.s)&&!chap()) st=book()?{s:'chapters',bid:st.bid}:{s:'books'};
+    if(st.s==='locked'&&!AC.lock(st.bid,st.num)) enterRead(st.bid,st.num);   // اتفتح (ميعاده جه أو التحديث وصل)
     if(st.s==='result'&&!st.res) st={s:'chapters',bid:st.bid};
     if(st.s==='resume'&&!sess) st={s:'chapters',bid:st.bid};
     let html=await views[st.s]();
@@ -175,13 +187,24 @@ export async function mount(el,ctx){
       if(sess&&sess.profileId!==pid){ await S.clear(); sess=null; }
       if(sess&&S.expired(sess)) flash=await closeSession(sess,'expired');
       if(sess&&!findCh(sess.bid,sess.num)){ await S.clear(); sess=null; }
-      if(sess) st={s:'resume',bid:st.bid,num}; else enterRead(st.bid,num);
+      if(gated) await Promise.race([AC.refresh(),sleep(2000)]);   // v9.21: أحدث مواعيد (حدّ أقصى ٢ث)
+      const lk=gated&&AC.lock(st.bid,num)&&!(sess&&sess.bid===st.bid&&sess.num===num);   // جلسة بدأت قبل القفل تكمل
+      if(lk) st={s:'locked',bid:st.bid,num};
+      else if(sess) st={s:'resume',bid:st.bid,num}; else enterRead(st.bid,num);
     }
     else if(a==='resume'){
       const h=sess&&hydrate(sess);
       if(h) st=h; else{ await S.clear(); sess=null; flash='تغيّر محتوى الامتحان فلا يمكن استكماله، ابدأ من جديد.'; st={s:'books'}; }
     }
-    else if(a==='fresh'){ const bid=st.bid, num=st.num; if(sess) flash=await closeSession(sess,'exit'); st.bid=bid; st.num=num; enterRead(bid,num); }
+    else if(a==='fresh'){ const bid=st.bid, num=st.num; if(sess) flash=await closeSession(sess,'exit'); st.bid=bid; st.num=num; if(gated&&AC.lock(bid,num)) st={s:'locked',bid,num}; else enterRead(bid,num); }
+    else if(a==='redeem'){
+      const ce=el.querySelector('#ce'), code=((el.querySelector('#cc')||{}).value||'').trim();
+      if(!code){ if(ce) ce.textContent='اكتب الكود.'; return; }
+      t.disabled=true; if(ce) ce.textContent='جارٍ التحقق…';
+      const r=await SY.redeemCode(st.bid,st.num,code);
+      if(r==='ok'){ await AC.markUnlocked(st.bid,st.num); flash='تم فتح الإصحاح ✅'; enterRead(st.bid,st.num); }
+      else{ if(ce) ce.textContent=({bad:'الكود غلط. اتأكد منه وجرّب تاني.',locked:'جرّبت كتير. استنى ساعة وجرّب تاني.',offline:'محتاج نت عشان تكتب الكود.'})[r]||'الخدمة مش شغّالة دلوقتي، جرّب بعدين.'; t.disabled=false; return; }
+    }
     else if(a==='skip'){ if(!staff||st.s!=='read') return; unlocked.add(ukey()); st.readUntil=0; }   // v9.19: تخطي وقت القراءة للطاقم فقط
     else if(a==='start'){
       if(st.s==='read'&&!unlocked.has(ukey())&&Date.now()<st.readUntil) return; // الزر لا يعمل قبل انتهاء العدّاد
@@ -195,6 +218,8 @@ export async function mount(el,ctx){
     await render();
   };
 
+  // v9.21: مواعيد الإصحاحات — الكاش فوراً (يشتغل أوفلاين) والتحديث من السيرفر في الخلفية
+  if(gated){ await AC.load(); AC.refresh().then(ok=>{ if(ok&&(st.s==='chapters'||st.s==='locked')&&el.isConnected) render(); }).catch(()=>{}); }
   // عند الفتح: نحمّل الجلسة المحفوظة، ونغلق المنتهية (> ٦ ساعات) تلقائياً
   sess=await S.load();
   if(sess&&sess.profileId!==pid){ await S.clear(); sess=null; }
