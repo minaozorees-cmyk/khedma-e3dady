@@ -8,6 +8,7 @@ import * as SY from './sync.js';
 import {showLogin,showForgot} from './login.js';
 import {setSection,setNavVisible} from './ui.js';
 import {showVotd} from './votd.js';
+import {maybeWelcome,resetWelcome} from './welcome.js';
 import * as RW from './req-watch.js';
 import * as IB from './inbox.js';
 const $=(s)=>document.querySelector(s);
@@ -28,18 +29,21 @@ async function loadRegistry(){
 }
 function visible(){ return mods.filter(m=>m.enabled && m.roles.includes(role)); }
 function land(){ const v=visible(), t=v.find(x=>x.id===LAND[role]); return (t||v[0]||{}).id||''; }
-function markActive(){ document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.dataset.id===curId)); }
+function markActive(){   // v9.19: المؤشر المنزلق (glider) يتحرك حسب ترتيب التبويب النشط
+  const as=[...document.querySelectorAll('nav a')], nav=$('nav'); as.forEach(a=>a.classList.toggle('active',a.dataset.id===curId));
+  const i=as.findIndex(a=>a.dataset.id===curId); nav.style.setProperty('--n',as.length||1); nav.style.setProperty('--i',Math.max(i,0)); nav.classList.toggle('noact',i<0);
+}
 
 function buildNav(){
   const v=visible();
-  $('nav').innerHTML=v.map(m=>`<a href="#/${m.id}" data-id="${m.id}"><span class="i">${m.icon}</span>${m.title}${(()=>{ const n=m.id==='members'?pending:(m.id==='messages'&&role==='student'?unread:0); return n>0?` (${ar(n)})`:''; })()}</a>`).join('');
+  $('nav').innerHTML=v.map(m=>`<a href="#/${m.id}" data-id="${m.id}"><span class="i">${m.icon}</span>${m.title}${(()=>{ const n=m.id==='members'?pending:(m.id==='messages'&&role==='student'?unread:0); return n>0?` (${ar(n)})`:''; })()}</a>`).join('')+'<div class="gl-glider" aria-hidden="true"></div>';
   markActive();
   return v;
 }
 // شاشة الدخول الموحّدة. hasProfile=true: الجهاز عليه ملف مخدوم، فنخفي أزرار "حساب جديد/عندي كود".
 function renderLogin(hasProfile){
   const main=$('main'); main.onclick=main.onchange=main.oninput=null;
-  setNavVisible(false); showVotd(false); setSection('دخول');
+  setNavVisible(false); showVotd(false); resetWelcome(); setSection('دخول');
   showLogin(main,{
     students:!hasProfile,
     onForgot:()=>{ setSection('نسيت كلمة السر'); showForgot(main,{onBack:()=>renderLogin(hasProfile)}); },
@@ -48,12 +52,12 @@ function renderLogin(hasProfile){
   });
 }
 function openGate(initial){
-  showVotd(false); setSection('حساب جديد');
+  showVotd(false); resetWelcome(); setSection('حساب جديد');
   showGate($('main'),()=>{ buildNav(); const v=visible(); history.replaceState(null,'','#/'+(v[0]?v[0].id:'')); route(); },{initial,onBack:()=>renderLogin(false)});
 }
 async function forcePw(){
   const main=$('main'); main.onclick=main.onchange=main.oninput=null;
-  setNavVisible(false); showVotd(false); setSection('تغيير كلمة السر'); main.innerHTML='';
+  setNavVisible(false); showVotd(false); resetWelcome(); setSection('تغيير كلمة السر'); main.innerHTML='';
   try{ const mod=await import('../modules/account/index.js'); await mod.mount(main,{forced:true,onDone:()=>route()}); }
   catch(e){ main.innerHTML='<div class="ph">تعذّر تحميل الصفحة.</div>'; }
 }
@@ -62,6 +66,7 @@ async function route(){
   if(role==='student' && !(await activeProfile())){ renderLogin(false); return; }
   if(role!=='student'){ const st=await db.get('staff'); if(st&&st.mustChange){ forcePw(); return; } }   // كلمة سر مؤقتة ⇒ تغيير إجباري
   setNavVisible(true); showVotd(true);
+  { const pr=role==='student'?await activeProfile():null; maybeWelcome(role,pr&&pr.name?String(pr.name).trim().split(/\s+/)[0]:''); }
   const v=visible(), id=location.hash.replace('#/','')||land();
   const m=v.find(x=>x.id===id)||v[0], main=$('main');
   main.onclick=main.onchange=main.oninput=null; // لا تبقى معالجات وحدة سابقة
