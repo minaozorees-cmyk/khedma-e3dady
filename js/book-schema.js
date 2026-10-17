@@ -17,13 +17,15 @@ function cleanQ(q,i,errs){
   if(!Number.isInteger(q.ans)||q.ans<0||q.ans>=opts.length){ errs.push(`السؤال ${n}: ans خارج نطاق الاختيارات`); return null; }
   return {...base,opts,ans:q.ans};
 }
-export function cleanChapter(c){
+// opt.lib=true: السفر مربوط بالمكتبة، فنص الإصحاح (chapter) والتأمل اختياريان (النص يُسحب من المكتبة عند القراءة)
+export function cleanChapter(c,opt={}){
+  const lib=!!opt.lib;
   const errs=[];
   if(!c||typeof c!=='object') return {chapter:null,errs:['إصحاح غير صالح']};
   const num=parseInt(c.chapterNum,10);
   if(!(num>0)) errs.push('رقم الإصحاح (chapterNum) مفقود أو غير صحيح');
-  let sections=[];
-  if(!Array.isArray(c.chapter)||!c.chapter.length) errs.push('لا توجد أقسام في chapter');
+  let sections=[], needsText=false;
+  if(!Array.isArray(c.chapter)||!c.chapter.length){ if(lib) needsText=true; else errs.push('لا توجد أقسام في chapter'); }
   else sections=c.chapter.map((s,i)=>{
     if(!s||!str(s.title)) errs.push(`القسم ${i+1}: العنوان (title) مفقود`);
     const verses=Array.isArray(s&&s.verses)?s.verses.map(verse).filter(Boolean):[];
@@ -32,21 +34,37 @@ export function cleanChapter(c){
   });
   const m=c.meditation||{};
   const med={verseText:str(m.verseText),verseRef:str(m.verseRef),meditation:str(m.meditation),comment:str(m.comment),message:str(m.message)};
-  if(Object.values(med).some(v=>!v)) errs.push('التأمل (meditation) ينقصه verseText أو verseRef أو meditation أو comment أو message');
+  const noMed=lib&&Object.values(med).every(v=>!v);   // في سفر المكتبة: التأمل اختياري كله أو لا شيء
+  if(!noMed&&Object.values(med).some(v=>!v)) errs.push('التأمل (meditation) ينقصه verseText أو verseRef أو meditation أو comment أو message');
   let qs=[];
   if(!Array.isArray(c.questions)||!c.questions.length) errs.push('لا توجد أسئلة (questions)');
   else qs=c.questions.map((q,i)=>cleanQ(q,i,errs)); // أي سؤال معيب يُسقط الإصحاح كله (لا يُعرض امتحان ناقص)
   if(errs.length) return {chapter:null,errs};
-  return {chapter:{chapterNum:num,sections,meditation:med,questions:qs},errs};
+  return {chapter:{chapterNum:num,sections,meditation:noMed?null:med,questions:qs,needsText},errs};
 }
 // يقبل ملف سفر بعدة إصحاحات {book,chapters:[...]} أو إصحاحاً مفرداً {book,chapterNum,...}
-export function normalizeFile(raw){
+export function normalizeFile(raw,opt={}){
   const out={book:'',chapters:[],problems:[]};
   if(!raw||typeof raw!=='object'||Array.isArray(raw)){ out.problems.push('الملف ليس كائن JSON صالحاً'); return out; }
   out.book=str(raw.book);
   const list=Array.isArray(raw.chapters)?raw.chapters:(raw.chapterNum!=null?[raw]:null);
   if(!list){ out.problems.push('لا توجد إصحاحات (chapters) ولا إصحاح مفرد'); return out; }
-  list.forEach((c,i)=>{ const {chapter,errs}=cleanChapter(c);
+  list.forEach((c,i)=>{ const {chapter,errs}=cleanChapter(c,opt);
+    if(errs.length) out.problems.push(`إصحاح ${c&&c.chapterNum!=null?c.chapterNum:'#'+(i+1)}: `+errs.join('، ')); else out.chapters.push(chapter); });
+  return out;
+}
+
+// (v9.26) ملف أسئلة فقط: {book?, chapterNum, questions, meditation?} أو {chapters:[...]} أو مصفوفة إصحاحات.
+// أي نص إصحاح (chapter) داخل الملف يُتجاهل: النص يُسحب من المكتبة. ignoredText = عدد الإصحاحات اللي نصها اتجاهل.
+export function normalizeQuestions(raw){
+  const out={book:'',chapters:[],problems:[],ignoredText:0};
+  if(!raw||typeof raw!=='object'){ out.problems.push('الملف ليس JSON صالحاً'); return out; }
+  out.book=Array.isArray(raw)?'':str(raw.book);
+  const list=Array.isArray(raw)?raw:(Array.isArray(raw.chapters)?raw.chapters:(raw.chapterNum!=null?[raw]:null));
+  if(!list){ out.problems.push('لا توجد إصحاحات (chapters) ولا إصحاح مفرد (chapterNum)'); return out; }
+  list.forEach((c,i)=>{
+    if(c&&typeof c==='object'&&Array.isArray(c.chapter)&&c.chapter.length) out.ignoredText++;
+    const {chapter,errs}=cleanChapter(c&&typeof c==='object'?{...c,chapter:null}:c,{lib:true});
     if(errs.length) out.problems.push(`إصحاح ${c&&c.chapterNum!=null?c.chapterNum:'#'+(i+1)}: `+errs.join('، ')); else out.chapters.push(chapter); });
   return out;
 }
