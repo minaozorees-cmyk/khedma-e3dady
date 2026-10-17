@@ -4,15 +4,16 @@
 import {normalizeFile} from './book-schema.js';
 import * as db from './db.js';
 import * as SY from './sync.js';
+import * as LIB from './library.js';
 const FILE_RE=/^[\w\-.\u0600-\u06FF]+\.json$/;
 const clampMin=(rm)=>{ rm=rm==null||rm===''?NaN:Number(rm); return Number.isFinite(rm)&&rm>=0?Math.min(rm,60):3; }; // دقائق القراءة قبل الامتحان: افتراضي ٣، و٠ = بلا انتظار
 // يبني قائمة الأسفار من إدخالات {id:{title,rm,chapters}} (chapters بالصيغة الخام: chapterNum/chapter/meditation/questions) ويعيد فحصها كأي ملف
 function build(entries,label){
   const books=[], problems=[];
   for(const id of Object.keys(entries).sort()){
-    const e=entries[id]||{}, n=normalizeFile({book:e.title,chapters:e.chapters});
+    const e=entries[id]||{}, lib=LIB.ID_RE.test(String(e.lib||''))?String(e.lib):'', n=normalizeFile({book:e.title,chapters:e.chapters},{lib:!!lib});
     n.problems.forEach(msg=>problems.push({file:label+id,msg}));
-    if(n.chapters.length) books.push({id,title:String(e.title||n.book||id),readMinutes:clampMin(e.rm),chapters:n.chapters.sort((a,c)=>a.chapterNum-c.chapterNum)});
+    if(n.chapters.length) books.push({id,title:String(e.title||n.book||id),readMinutes:clampMin(e.rm),lib,chapters:n.chapters.sort((a,c)=>a.chapterNum-c.chapterNum)});
   }
   return {books,problems};
 }
@@ -25,7 +26,7 @@ async function fromServer(){
     const c=old[id];
     if(c&&c.u===row.updated_at){ fresh[id]=c; continue; }
     const d=await SY.booksGet(id);
-    if(d&&Array.isArray(d.chapters)) fresh[id]={u:row.updated_at,title:row.title,rm:row.read_minutes,chapters:d.chapters};
+    if(d&&Array.isArray(d.chapters)) fresh[id]={u:row.updated_at,title:row.title,rm:row.read_minutes,chapters:d.chapters,lib:d.lib||''};
     else if(c) fresh[id]=c; // فشل التحميل: نبقي النسخة القديمة
   }
   if(!list.length) await db.del('booksCache'); else await db.set('booksCache',fresh);
@@ -64,4 +65,10 @@ export async function dropFromCache(id){
   try{ const c=await db.get('booksCache'); if(!c||!(id in c)) return; delete c[id]; if(Object.keys(c).length) await db.set('booksCache',c); else await db.del('booksCache'); }catch(e){}
 }
 // يُستدعى والنت متاح لتخزين الأسفار للأوفلاين (عبر الـService Worker)
-export const prefetch=()=>loadAll().catch(()=>{});
+// (v9.26) ويسخّن كاش نصوص المكتبة للأسفار المربوطة بها (عشان الامتحان يشتغل أوفلاين)
+export const prefetch=()=>loadAll().then(r=>{ for(const b of r.books) if(b.lib) LIB.warm(b.lib); }).catch(()=>{});
+// (v9.26) إصحاح أسئلته فقط (needsText): يسحب نصه من المكتبة عند القراءة. يرجع false لو تعذّر (أوفلاين ولسه ما اتحمّلش).
+export async function ensureText(b,c){
+  if(!c.needsText||c.sections.length) return true;
+  try{ const s=await LIB.chapterSections(b.lib,c.chapterNum); if(!s) return false; c.sections=s; return true; }catch(e){ return false; }
+}
