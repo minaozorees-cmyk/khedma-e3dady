@@ -201,9 +201,9 @@ export async function mount(el,ctx){
       const ce=el.querySelector('#ce'), code=((el.querySelector('#cc')||{}).value||'').trim();
       if(!code){ if(ce) ce.textContent='اكتب الكود.'; return; }
       t.disabled=true; if(ce) ce.textContent='جارٍ التحقق…';
-      const r=await SY.redeemCode(st.bid,st.num,code);
+      const r=await AC.verify(st.bid,st.num,code);   // v9.22: فحص محلي (بصمة SHA-256)، ما يحتاجش نت
       if(r==='ok'){ await AC.markUnlocked(st.bid,st.num); flash='تم فتح الإصحاح ✅'; enterRead(st.bid,st.num); }
-      else{ if(ce) ce.textContent=({bad:'الكود غلط. اتأكد منه وجرّب تاني.',locked:'جرّبت كتير. استنى ساعة وجرّب تاني.',offline:'محتاج نت عشان تكتب الكود.'})[r]||'الخدمة مش شغّالة دلوقتي، جرّب بعدين.'; t.disabled=false; return; }
+      else{ if(ce) ce.textContent=({bad:'الكود غلط. اتأكد منه وجرّب تاني.',locked:'جرّبت كتير. استنى ساعة وجرّب تاني.',nodata:'الأكواد لسه ما وصلتش جهازك. افتح التطبيق مرة وانت متصل بالنت وجرّب تاني.',unavailable:'المتصفح ده مش بيدعم فحص الكود. افتح التطبيق من متصفح تاني.'})[r]||'تعذّر الفحص، جرّب تاني.'; t.disabled=false; return; }
     }
     else if(a==='skip'){ if(!staff||st.s!=='read') return; unlocked.add(ukey()); st.readUntil=0; }   // v9.19: تخطي وقت القراءة للطاقم فقط
     else if(a==='start'){
