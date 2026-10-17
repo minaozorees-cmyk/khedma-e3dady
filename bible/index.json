@@ -1,0 +1,521 @@
+{
+ "version": 1,
+ "build": "v1",
+ "books": [
+  {
+   "id": "gen",
+   "title": "التكوين",
+   "testament": "ot",
+   "chapters": 50,
+   "file": "gen.json"
+  },
+  {
+   "id": "exo",
+   "title": "الخروج",
+   "testament": "ot",
+   "chapters": 40,
+   "file": "exo.json"
+  },
+  {
+   "id": "lev",
+   "title": "اللاويين",
+   "testament": "ot",
+   "chapters": 27,
+   "file": "lev.json"
+  },
+  {
+   "id": "num",
+   "title": "العدد",
+   "testament": "ot",
+   "chapters": 36,
+   "file": "num.json"
+  },
+  {
+   "id": "deu",
+   "title": "التثنية",
+   "testament": "ot",
+   "chapters": 34,
+   "file": "deu.json"
+  },
+  {
+   "id": "jos",
+   "title": "يشوع",
+   "testament": "ot",
+   "chapters": 24,
+   "file": "jos.json"
+  },
+  {
+   "id": "jdg",
+   "title": "القضاة",
+   "testament": "ot",
+   "chapters": 21,
+   "file": "jdg.json"
+  },
+  {
+   "id": "rut",
+   "title": "راعوث",
+   "testament": "ot",
+   "chapters": 4,
+   "file": "rut.json"
+  },
+  {
+   "id": "sam1",
+   "title": "صموئيل الأول",
+   "testament": "ot",
+   "chapters": 31,
+   "file": "sam1.json"
+  },
+  {
+   "id": "sam2",
+   "title": "صموئيل الثاني",
+   "testament": "ot",
+   "chapters": 24,
+   "file": "sam2.json"
+  },
+  {
+   "id": "kgs1",
+   "title": "الملوك الأول",
+   "testament": "ot",
+   "chapters": 22,
+   "file": "kgs1.json"
+  },
+  {
+   "id": "kgs2",
+   "title": "الملوك الثاني",
+   "testament": "ot",
+   "chapters": 25,
+   "file": "kgs2.json"
+  },
+  {
+   "id": "chr1",
+   "title": "أخبار الأيام الأول",
+   "testament": "ot",
+   "chapters": 29,
+   "file": "chr1.json"
+  },
+  {
+   "id": "chr2",
+   "title": "أخبار الأيام الثاني",
+   "testament": "ot",
+   "chapters": 36,
+   "file": "chr2.json"
+  },
+  {
+   "id": "ezr",
+   "title": "عزرا",
+   "testament": "ot",
+   "chapters": 10,
+   "file": "ezr.json"
+  },
+  {
+   "id": "neh",
+   "title": "نحميا",
+   "testament": "ot",
+   "chapters": 13,
+   "file": "neh.json"
+  },
+  {
+   "id": "tob",
+   "title": "طوبيا",
+   "testament": "ot",
+   "chapters": 14,
+   "file": "tob.json"
+  },
+  {
+   "id": "jdt",
+   "title": "يهوديت",
+   "testament": "ot",
+   "chapters": 16,
+   "file": "jdt.json"
+  },
+  {
+   "id": "est",
+   "title": "أستير",
+   "testament": "ot",
+   "chapters": 16,
+   "file": "est.json"
+  },
+  {
+   "id": "job",
+   "title": "أيوب",
+   "testament": "ot",
+   "chapters": 42,
+   "file": "job.json"
+  },
+  {
+   "id": "psa",
+   "title": "المزامير",
+   "testament": "ot",
+   "chapters": 151,
+   "file": "psa.json"
+  },
+  {
+   "id": "pro",
+   "title": "الأمثال",
+   "testament": "ot",
+   "chapters": 31,
+   "file": "pro.json"
+  },
+  {
+   "id": "ecc",
+   "title": "الجامعة",
+   "testament": "ot",
+   "chapters": 12,
+   "file": "ecc.json"
+  },
+  {
+   "id": "sol",
+   "title": "نشيد الأنشاد",
+   "testament": "ot",
+   "chapters": 8,
+   "file": "sol.json"
+  },
+  {
+   "id": "wis",
+   "title": "الحكمة",
+   "testament": "ot",
+   "chapters": 19,
+   "file": "wis.json"
+  },
+  {
+   "id": "sir",
+   "title": "يشوع بن سيراخ",
+   "testament": "ot",
+   "chapters": 51,
+   "file": "sir.json"
+  },
+  {
+   "id": "isa",
+   "title": "إشعياء",
+   "testament": "ot",
+   "chapters": 66,
+   "file": "isa.json"
+  },
+  {
+   "id": "jer",
+   "title": "إرميا",
+   "testament": "ot",
+   "chapters": 52,
+   "file": "jer.json"
+  },
+  {
+   "id": "lam",
+   "title": "مراثي إرميا",
+   "testament": "ot",
+   "chapters": 5,
+   "file": "lam.json"
+  },
+  {
+   "id": "bar",
+   "title": "باروخ",
+   "testament": "ot",
+   "chapters": 6,
+   "file": "bar.json"
+  },
+  {
+   "id": "ezk",
+   "title": "حزقيال",
+   "testament": "ot",
+   "chapters": 48,
+   "file": "ezk.json"
+  },
+  {
+   "id": "dan",
+   "title": "دانيال",
+   "testament": "ot",
+   "chapters": 14,
+   "file": "dan.json"
+  },
+  {
+   "id": "hos",
+   "title": "هوشع",
+   "testament": "ot",
+   "chapters": 14,
+   "file": "hos.json"
+  },
+  {
+   "id": "jol",
+   "title": "يوئيل",
+   "testament": "ot",
+   "chapters": 3,
+   "file": "jol.json"
+  },
+  {
+   "id": "amo",
+   "title": "عاموس",
+   "testament": "ot",
+   "chapters": 9,
+   "file": "amo.json"
+  },
+  {
+   "id": "oba",
+   "title": "عوبديا",
+   "testament": "ot",
+   "chapters": 1,
+   "file": "oba.json"
+  },
+  {
+   "id": "jon",
+   "title": "يونان",
+   "testament": "ot",
+   "chapters": 4,
+   "file": "jon.json"
+  },
+  {
+   "id": "mic",
+   "title": "ميخا",
+   "testament": "ot",
+   "chapters": 7,
+   "file": "mic.json"
+  },
+  {
+   "id": "nah",
+   "title": "ناحوم",
+   "testament": "ot",
+   "chapters": 3,
+   "file": "nah.json"
+  },
+  {
+   "id": "hab",
+   "title": "حبقوق",
+   "testament": "ot",
+   "chapters": 3,
+   "file": "hab.json"
+  },
+  {
+   "id": "zep",
+   "title": "صفنيا",
+   "testament": "ot",
+   "chapters": 3,
+   "file": "zep.json"
+  },
+  {
+   "id": "hag",
+   "title": "حجي",
+   "testament": "ot",
+   "chapters": 2,
+   "file": "hag.json"
+  },
+  {
+   "id": "zec",
+   "title": "زكريا",
+   "testament": "ot",
+   "chapters": 14,
+   "file": "zec.json"
+  },
+  {
+   "id": "mal",
+   "title": "ملاخي",
+   "testament": "ot",
+   "chapters": 4,
+   "file": "mal.json"
+  },
+  {
+   "id": "mac1",
+   "title": "المكابيين الأول",
+   "testament": "ot",
+   "chapters": 16,
+   "file": "mac1.json"
+  },
+  {
+   "id": "mac2",
+   "title": "المكابيين الثاني",
+   "testament": "ot",
+   "chapters": 15,
+   "file": "mac2.json"
+  },
+  {
+   "id": "mat",
+   "title": "متى",
+   "testament": "nt",
+   "chapters": 28,
+   "file": "mat.json"
+  },
+  {
+   "id": "mar",
+   "title": "مرقس",
+   "testament": "nt",
+   "chapters": 16,
+   "file": "mar.json"
+  },
+  {
+   "id": "luk",
+   "title": "لوقا",
+   "testament": "nt",
+   "chapters": 24,
+   "file": "luk.json"
+  },
+  {
+   "id": "jhn",
+   "title": "يوحنا",
+   "testament": "nt",
+   "chapters": 21,
+   "file": "jhn.json"
+  },
+  {
+   "id": "act",
+   "title": "أعمال الرسل",
+   "testament": "nt",
+   "chapters": 28,
+   "file": "act.json"
+  },
+  {
+   "id": "rom",
+   "title": "رومية",
+   "testament": "nt",
+   "chapters": 16,
+   "file": "rom.json"
+  },
+  {
+   "id": "cor1",
+   "title": "كورنثوس الأولى",
+   "testament": "nt",
+   "chapters": 16,
+   "file": "cor1.json"
+  },
+  {
+   "id": "cor2",
+   "title": "كورنثوس الثانية",
+   "testament": "nt",
+   "chapters": 13,
+   "file": "cor2.json"
+  },
+  {
+   "id": "gal",
+   "title": "غلاطية",
+   "testament": "nt",
+   "chapters": 6,
+   "file": "gal.json"
+  },
+  {
+   "id": "eph",
+   "title": "أفسس",
+   "testament": "nt",
+   "chapters": 6,
+   "file": "eph.json"
+  },
+  {
+   "id": "phi",
+   "title": "فيلبي",
+   "testament": "nt",
+   "chapters": 4,
+   "file": "phi.json"
+  },
+  {
+   "id": "col",
+   "title": "كولوسي",
+   "testament": "nt",
+   "chapters": 4,
+   "file": "col.json"
+  },
+  {
+   "id": "the1",
+   "title": "تسالونيكي الأولى",
+   "testament": "nt",
+   "chapters": 5,
+   "file": "the1.json"
+  },
+  {
+   "id": "the2",
+   "title": "تسالونيكي الثانية",
+   "testament": "nt",
+   "chapters": 3,
+   "file": "the2.json"
+  },
+  {
+   "id": "tim1",
+   "title": "تيموثاوس الأولى",
+   "testament": "nt",
+   "chapters": 6,
+   "file": "tim1.json"
+  },
+  {
+   "id": "tim2",
+   "title": "تيموثاوس الثانية",
+   "testament": "nt",
+   "chapters": 4,
+   "file": "tim2.json"
+  },
+  {
+   "id": "tit",
+   "title": "تيطس",
+   "testament": "nt",
+   "chapters": 3,
+   "file": "tit.json"
+  },
+  {
+   "id": "phm",
+   "title": "فليمون",
+   "testament": "nt",
+   "chapters": 1,
+   "file": "phm.json"
+  },
+  {
+   "id": "heb",
+   "title": "العبرانيين",
+   "testament": "nt",
+   "chapters": 13,
+   "file": "heb.json"
+  },
+  {
+   "id": "jam",
+   "title": "يعقوب",
+   "testament": "nt",
+   "chapters": 5,
+   "file": "jam.json"
+  },
+  {
+   "id": "pet1",
+   "title": "بطرس الأولى",
+   "testament": "nt",
+   "chapters": 5,
+   "file": "pet1.json"
+  },
+  {
+   "id": "pet2",
+   "title": "بطرس الثانية",
+   "testament": "nt",
+   "chapters": 3,
+   "file": "pet2.json"
+  },
+  {
+   "id": "joh1",
+   "title": "يوحنا الأولى",
+   "testament": "nt",
+   "chapters": 5,
+   "file": "joh1.json"
+  },
+  {
+   "id": "joh2",
+   "title": "يوحنا الثانية",
+   "testament": "nt",
+   "chapters": 1,
+   "file": "joh2.json"
+  },
+  {
+   "id": "joh3",
+   "title": "يوحنا الثالثة",
+   "testament": "nt",
+   "chapters": 1,
+   "file": "joh3.json"
+  },
+  {
+   "id": "jud",
+   "title": "يهوذا",
+   "testament": "nt",
+   "chapters": 1,
+   "file": "jud.json"
+  },
+  {
+   "id": "rev",
+   "title": "الرؤيا",
+   "testament": "nt",
+   "chapters": 22,
+   "file": "rev.json"
+  }
+ ],
+ "agpeya": {
+  "file": "agpeya.json",
+  "title": "الأجبية"
+ }
+}
