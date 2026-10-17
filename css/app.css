@@ -216,3 +216,14 @@ nav .gl-glider{position:absolute;z-index:1;right:0;left:0;top:0;height:var(--h);
 nav.noact .gl-glider{opacity:0}
 [data-theme=light] nav{background:rgba(0,0,0,.05);box-shadow:inset 1px 1px 4px rgba(255,255,255,.8),inset -1px -1px 6px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.08)}
 [data-theme=light] nav a,[data-theme=light] nav a:hover,[data-theme=light] nav a.active{color:#000}
+
+/* (v9.26) قارئ الأسفار والأجبية — الحجم من المتغيّر --rd (يتحكم فيه زرّا أ− / أ+) */
+.rd-txt{font-family:'Amiri','Tajawal','Cairo',sans-serif;font-size:var(--rd,1.2rem);line-height:2.3}
+.rd-txt .ver{line-height:2.3;margin:2px 0}
+.rd-txt b{font-size:.85em}
+.rd-pre{white-space:pre-wrap;margin-top:6px}
+.rd-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.rd-bar .btn{width:64px;min-height:40px;margin:0;padding:6px}
+.rd-nav{display:flex;gap:8px;margin-bottom:6px}.rd-nav .btn{margin-top:0;flex:1;padding:12px 8px}
+.rd-sec{font-family:'Cairo',sans-serif;font-weight:700;color:var(--gold);font-size:.95rem;margin:18px 2px 8px}
+.gate input[type=search]{-webkit-appearance:none;appearance:none}
