@@ -59,5 +59,9 @@ async function fromLocal(){
   }
   return {books,problems};
 }
+// (v9.25) بعد حذف سفر من السيرفر: يشيله من الكاش المحلي فوراً (باقي الأجهزة بيتشال منها عند أول فتح أونلاين لأن fromServer بيبني الكاش من قايمة السيرفر).
+export async function dropFromCache(id){
+  try{ const c=await db.get('booksCache'); if(!c||!(id in c)) return; delete c[id]; if(Object.keys(c).length) await db.set('booksCache',c); else await db.del('booksCache'); }catch(e){}
+}
 // يُستدعى والنت متاح لتخزين الأسفار للأوفلاين (عبر الـService Worker)
 export const prefetch=()=>loadAll().catch(()=>{});
