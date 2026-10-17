@@ -351,8 +351,11 @@ export const booksList=()=>pub('/rest/v1/books?select=id,title,read_minutes,upda
 export async function booksGet(id){ const x=await pub(`/rest/v1/books?id=eq.${encodeURIComponent(id)}&select=data`); return x&&x[0]&&x[0].data?x[0].data:null; }
 
 // ===== (v9.21) مواعيد وأكواد الإصحاحات =====
-// accessList: قراءة عامة (null = أوفلاين/فشل/الـSQL لسه ما اتشغّلش → المستدعي يرجع للكاش). serverNow: ملّي ثانية أو null.
-export const accessList=()=>pub('/rest/v1/chapter_access?select=book_id,chapter_num,opens_at,closes_at&order=book_id,chapter_num');
+// accessSyncTimes (accessList سابقاً): قراءة عامة (null = أوفلاين/فشل/الـSQL لسه ما اتشغّلش → المستدعي يرجع للكاش). serverNow: ملّي ثانية أو null.
+export const accessSyncTimes=()=>pub('/rest/v1/chapter_access?select=book_id,chapter_num,opens_at,closes_at,updated_at&order=book_id,chapter_num');
+export const accessList=accessSyncTimes; // اسم v9.21 (توافق)
+// v9.22: بصمات الأكواد (SHA-256 + salt) فقط؛ الكود الخام ما بيطلعش من chapter_codes. null = أوفلاين/فشل/الـSQL لسه ما اتشغّلش.
+export const accessSyncCodes=()=>pub('/rest/v1/chapter_code_hashes?select=book_id,chapter_num,salt,hash,updated_at&order=book_id,chapter_num');
 export async function serverNow(){
   if(!enabled()||offline()) return null;
   const c=new AbortController(), t=setTimeout(()=>c.abort(),6000);
