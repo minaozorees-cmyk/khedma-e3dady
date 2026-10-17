@@ -53,6 +53,17 @@
       "enabled": true
     },
     {
+      "id": "library",
+      "title": "قراءة الأسفار",
+      "icon": "📜",
+      "roles": [
+        "student"
+      ],
+      "type": "module",
+      "entry": "modules/library/index.js",
+      "enabled": true
+    },
+    {
       "id": "codes",
       "title": "أكواد الإصحاحات",
       "icon": "🔑",
@@ -180,6 +191,17 @@
       ],
       "type": "module",
       "entry": "modules/agpeya/index.js",
+      "enabled": true
+    },
+    {
+      "id": "agpeya-read",
+      "title": "قراءة الأجبية",
+      "icon": "🕯️",
+      "roles": [
+        "student"
+      ],
+      "type": "module",
+      "entry": "modules/agpeya-read/index.js",
       "enabled": true
     },
     {
