@@ -1,28 +1,45 @@
+# v9.23 — Keep-Alive: طلب خفيف لـSupabase كل ٣ أيام عشان المشروع المجاني ما يتوقفش بعد ٧ أيام خمول.
+# الإعداد: Repo → Settings → Secrets and variables → Actions → New repository secret:
+#   SUPABASE_URL       (مثلاً https://xxxx.supabase.co)
+#   SUPABASE_ANON_KEY  (المفتاح anon public — مش service_role)
+# ما فيش أي مفتاح هنا. التجربة اليدوية: تبويب Actions → keep-alive → Run workflow.
 name: keep-alive
+
 on:
   schedule:
-    - cron: '0 0 */3 * *'
+    - cron: '0 0 */3 * *'   # يوم ١ و٤ و٧ ... من كل شهر الساعة ٠٠:٠٠ UTC (أقصى فاصل ٣ أيام)
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Ping Supabase
+      - name: Ping Supabase REST (books, limit 1)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
-            echo "::error::Secrets not set (SUPABASE_URL / SUPABASE_ANON_KEY)"
+          set -u
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${SUPABASE_ANON_KEY}" ]; then
+            echo "::error::Secrets SUPABASE_URL / SUPABASE_ANON_KEY غير مضبوطة"
             exit 1
           fi
-          case "$SUPABASE_URL" in
-            https://*) ;;
-            *) echo "::error::SUPABASE_URL must start with https://"; exit 1 ;;
-          esac
-          status=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
-            "$SUPABASE_URL/rest/v1/books?select=id&limit=1")
-          echo "HTTP status: $status"
-          [ "$status" = "200" ] || exit 1
+          case "${SUPABASE_URL}" in https://*) ;; *) echo "::error::SUPABASE_URL لازم يبدأ بـ https://"; exit 1 ;; esac
+          base="${SUPABASE_URL%/}"
+          code=$(curl -sS -o response.json -w '%{http_code}' --max-time 30 --retry 3 --retry-delay 5 \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${base}/rest/v1/books?select=id&limit=1") || code="000"
+          echo "HTTP status: ${code}"
+          if [ "${code}" = "200" ]; then
+            echo "OK: Supabase رد بنجاح."
+            exit 0
+          fi
+          echo "::error::Supabase رجّع HTTP ${code}"
+          head -c 500 response.json 2>/dev/null || true
+          echo
+          exit 1
