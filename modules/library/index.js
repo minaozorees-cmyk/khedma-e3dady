@@ -1,3 +1,4 @@
+// (v9.33) قائمتان فوق: السفر ← الإصحاح.
 // (v9.26) قراءة الأسفار: مكتبة نصوص الكتاب المقدس للمخدوم (قراءة فقط، بدون امتحانات).
 // الفهرس صغير ومتخزّن مع التطبيق؛ كل سفر ملف مستقل بيتحمّل عند فتحه فقط (lazy) ويتخزّن للأوفلاين.
 import * as L from '../../js/library.js';
@@ -18,25 +19,28 @@ export async function mount(el){
     if(!f.length) return '<div class="hint" style="text-align:center">مفيش سفر بالاسم ده.</div>';
     return group('العهد القديم',f.filter(b=>b.testament==='ot'))+group('العهد الجديد',f.filter(b=>b.testament==='nt')); };
   const meta=(id)=>idx.find(b=>b.id===id);
+  const pick=()=>{ const cur=st.id&&meta(st.id), og=(t,l)=>l.length?`<optgroup label="${t}">${l.map(b=>`<option value="${esc(b.id)}"${cur&&cur.id===b.id?' selected':''}>${esc(b.title)}</option>`).join('')}</optgroup>`:'';
+    return `<div class="rd-pick"><select id="bs" aria-label="السفر"><option value=""${cur?'':' selected'}>— اختر السفر —</option>${og('العهد القديم',idx.filter(b=>b.testament==='ot'))}${og('العهد الجديد',idx.filter(b=>b.testament==='nt'))}</select>
+      <select id="cs" aria-label="الإصحاح"${cur?'':' disabled'}><option value="0"${st.s==='read'?'':' selected'}>— الإصحاح —</option>${cur?Array.from({length:cur.chapters},(_,i)=>`<option value="${i+1}"${st.s==='read'&&st.n===i+1?' selected':''}>إصحاح ${n(i+1)}</option>`).join(''):''}</select></div>`; };
 
   async function render(){
     el.style.setProperty('--rd',fs+'rem');
     if(st.s==='list'){
       const lm=last&&meta(last.id);
-      el.innerHTML=`<div class="gate">
+      el.innerHTML=`<div class="gate">${pick()}
         ${lm?`<button class="card2 bk" data-a="resume"><b>📌 كمّل القراءة</b><small>${esc(lm.title)} — إصحاح ${n(last.n)}</small></button>`:''}
         <div class="fld"><input id="q" type="search" placeholder="ابحث عن سفر…" autocomplete="off" aria-label="بحث"></div>
         <div id="lst">${listHtml('')}</div></div>`;
     }
     else if(st.s==='chapters'){
       const m=meta(st.id);
-      el.innerHTML=`<div class="gate"><h3 class="ttl">${esc(m.title)}</h3><div class="hint">اختر الإصحاح</div>
+      el.innerHTML=`<div class="gate">${pick()}<h3 class="ttl">${esc(m.title)}</h3><div class="hint">اختر الإصحاح</div>
         <div class="chgrid">${Array.from({length:m.chapters},(_,i)=>`<button class="chb${last&&last.id===m.id&&last.n===i+1?' done':''}" data-a="chap" data-n="${i+1}">${n(i+1)}</button>`).join('')}</div>
         <button class="btn sec" data-a="toList">رجوع للأسفار</button></div>`;
     }
     else if(st.s==='read'){
       const m=meta(st.id), c=bk.chapters.find(x=>Number(x.n)===st.n);
-      el.innerHTML=`<div class="gate"><h3 class="ttl">${esc(m.title)} — إصحاح ${n(st.n)}</h3>${sizeBar()}
+      el.innerHTML=`<div class="gate">${pick()}<h3 class="ttl">${esc(m.title)} — إصحاح ${n(st.n)}</h3>${sizeBar()}
         <div class="card2 rd-txt">${c?c.verses.map(v=>`<p class="ver"><sup>${esc(v[0])}</sup> ${esc(v[1])}</p>`).join(''):'<div class="warn">الإصحاح ده مش موجود.</div>'}</div>
         <div class="rd-nav"><button class="btn sec" data-a="prev" ${st.n<=1?'disabled':''}>› الإصحاح السابق</button><button class="btn sec" data-a="next" ${st.n>=m.chapters?'disabled':''}>الإصحاح التالي ‹</button></div>
         <button class="btn" data-a="toChap">إصحاحات ${esc(m.title)}</button></div>`;
@@ -63,6 +67,10 @@ export async function mount(el){
     else if(a==='toList'){ st={s:'list'}; await render(); }
     else if(a==='retry') await open(st.id,st.n);
     else if(a==='fm'||a==='fp'){ fs=Math.min(L.FONT.max,Math.max(L.FONT.min,+(fs+(a==='fp'?1:-1)*L.FONT.step).toFixed(2))); L.setFont(fs); el.style.setProperty('--rd',fs+'rem'); }
+  };
+  el.onchange=async(e)=>{
+    if(e.target.id==='bs'){ if(e.target.value) await open(e.target.value,0); else { st={s:'list'}; await render(); } }
+    else if(e.target.id==='cs'){ const v=Number(e.target.value); if(v>0) await open(st.id,v); }
   };
   el.oninput=(e)=>{ if(e.target.id==='q'){ const l=el.querySelector('#lst'); if(l) l.innerHTML=listHtml(e.target.value); } };
   render();
