@@ -227,3 +227,11 @@ nav.noact .gl-glider{opacity:0}
 .rd-nav{display:flex;gap:8px;margin-bottom:6px}.rd-nav .btn{margin-top:0;flex:1;padding:12px 8px}
 .rd-sec{font-family:'Cairo',sans-serif;font-weight:700;color:var(--gold);font-size:.95rem;margin:18px 2px 8px}
 .gate input[type=search]{-webkit-appearance:none;appearance:none}
+
+/* v9.29: إخفاء الهيدر عند النزول (موبايل) */
+@media(max-width:900px){
+  header,.topbar{max-height:160px;overflow:hidden;transition:max-height .28s ease,padding .28s ease,opacity .2s ease,border-width .28s ease}
+  body.hdr-hide header,body.hdr-hide .topbar{max-height:0;padding-top:0;padding-bottom:0;opacity:0;border-width:0;box-shadow:none;pointer-events:none}
+  body.hdr-hide #welcome{top:calc(10px + env(safe-area-inset-top))}
+}
+@media(prefers-reduced-motion:reduce){header,.topbar{transition:none!important}}
