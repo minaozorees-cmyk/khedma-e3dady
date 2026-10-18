@@ -48,7 +48,7 @@ export async function mount(el){
     <div class="card2"><div class="row" style="border:0;padding:0"><b>📚 تقدم الامتحانات</b><b>${allChapters?ar(pct)+'٪':'—'}</b></div>
       <div class="prog"><i style="width:${pct}%"></i></div>
       <div class="hint">${allChapters?'تم تسجيل نتيجة امتحان على الجهاز لـ '+ar(doneCount)+' من '+ar(allChapters)+' إصحاح متاح في ملفات الامتحانات. النسبة تقيس وجود نتيجة، لا إتقان السفر.':'تعذر حساب تقدم الامتحانات من ملفات الامتحان المتاحة.'}</div>
-      <button class="btn" data-go="books">📖 افتح الأسفار والامتحانات</button>
+      <button class="btn" data-go="books">📖 افتح المسابقة</button>
     </div>
     <div class="card2"><b>▶️ كمّل من حيث وقفت</b>
       ${activeSession?`<p>${esc(examName)}</p><button class="btn" data-go="books">استكمال الامتحان المفتوح</button>`:
