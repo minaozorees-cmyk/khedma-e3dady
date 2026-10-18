@@ -83,7 +83,10 @@
       "title": "قراءة الأسفار",
       "icon": "📜",
       "roles": [
-        "student"
+        "student",
+        "servant",
+        "priest",
+        "owner"
       ],
       "type": "module",
       "entry": "modules/library/index.js",
@@ -235,7 +238,10 @@
       "title": "قراءة الأجبية",
       "icon": "🕯️",
       "roles": [
-        "student"
+        "student",
+        "servant",
+        "priest",
+        "owner"
       ],
       "type": "module",
       "entry": "modules/agpeya-read/index.js",
