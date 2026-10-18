@@ -4,6 +4,7 @@
 import * as L from '../../js/library.js';
 import {esc} from '../../js/consts.js';
 import {n} from '../../js/dates.js';
+import * as TTS from '../../js/tts.js';
 
 // تطبيع عربي للبحث: بدون تشكيل، وتوحيد الألف والياء والتاء المربوطة
 const norm=(s)=>String(s).replace(/[ً-ٰٟ]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').trim();
@@ -24,7 +25,7 @@ export async function mount(el){
       <select id="cs" aria-label="الإصحاح"${cur?'':' disabled'}><option value="0"${st.s==='read'?'':' selected'}>— الإصحاح —</option>${cur?Array.from({length:cur.chapters},(_,i)=>`<option value="${i+1}"${st.s==='read'&&st.n===i+1?' selected':''}>إصحاح ${n(i+1)}</option>`).join(''):''}</select></div>`; };
 
   async function render(){
-    el.style.setProperty('--rd',fs+'rem');
+    TTS.stop(); el.style.setProperty('--rd',fs+'rem');
     if(st.s==='list'){
       const lm=last&&meta(last.id);
       el.innerHTML=`<div class="gate">${pick()}
@@ -40,7 +41,7 @@ export async function mount(el){
     }
     else if(st.s==='read'){
       const m=meta(st.id), c=bk.chapters.find(x=>Number(x.n)===st.n);
-      el.innerHTML=`<div class="gate">${pick()}<h3 class="ttl">${esc(m.title)} — إصحاح ${n(st.n)}</h3>${sizeBar()}
+      el.innerHTML=`<div class="gate">${pick()}<h3 class="ttl">${esc(m.title)} — إصحاح ${n(st.n)}</h3>${sizeBar()}${TTS.bar()}
         <div class="card2 rd-txt">${c?c.verses.map(v=>`<p class="ver"><sup>${esc(v[0])}</sup> ${esc(v[1])}</p>`).join(''):'<div class="warn">الإصحاح ده مش موجود.</div>'}</div>
         <div class="rd-nav"><button class="btn sec" data-a="prev" ${st.n<=1?'disabled':''}>› الإصحاح السابق</button><button class="btn sec" data-a="next" ${st.n>=m.chapters?'disabled':''}>الإصحاح التالي ‹</button></div>
         <button class="btn" data-a="toChap">إصحاحات ${esc(m.title)}</button></div>`;
@@ -48,7 +49,7 @@ export async function mount(el){
     else if(st.s==='loading') el.innerHTML='<div class="ph">جارٍ تحميل السفر…</div>';
     else if(st.s==='err') el.innerHTML=`<div class="gate"><div class="card2"><div class="warn">تعذّر تحميل السفر. أول مرة تفتحه لازم تكون متصل بالنت، وبعدها هيشتغل أوفلاين.</div></div>
       <button class="btn" data-a="retry">إعادة المحاولة</button><button class="btn sec" data-a="toList">رجوع</button></div>`;
-    el.scrollTop=0; window.scrollTo&&window.scrollTo(0,0);
+    el.scrollTop=0; window.scrollTo&&window.scrollTo(0,0); TTS.bind(el);
   }
   async function open(id,num){
     st={s:'loading'}; await render();
