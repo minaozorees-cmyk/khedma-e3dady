@@ -56,4 +56,27 @@ export function initUI(){
   addEventListener('hashchange',closeSidebar);
   $('#nav').addEventListener('click',e=>{ if(e.target.closest('a')) closeSidebar(); });
   stars();
+  autoHideHeader();
+}
+
+/* إخفاء الهيدر عند النزول وإظهاره عند الصعود (موبايل) */
+function autoHideHeader(){
+  const main=document.querySelector('main'); if(!main) return;
+  const mq=matchMedia('(max-width:900px)');
+  let last=0, lock=0, hidden=false;
+  const set=h=>{ if(h===hidden) return; hidden=h; document.body.classList.toggle('hdr-hide',h); lock=Date.now()+400; };
+  main.addEventListener('scroll',()=>{
+    const y=main.scrollTop;
+    if(!mq.matches){ set(false); last=y; return; }
+    if(Date.now()<lock){ last=y; return; }
+    const d=y-last;
+    if(y<=40) set(false);
+    else if(d>10) set(true);
+    else if(d<-10) set(false);
+    if(Math.abs(d)>10||y<=40) last=y;
+  },{passive:true});
+  addEventListener('hashchange',()=>{ set(false); last=0; });
+  mq.addEventListener&&mq.addEventListener('change',()=>set(false));
+  const sb=document.getElementById('sidebar');
+  if(sb) new MutationObserver(()=>{ if(sb.classList.contains('open')) set(false); }).observe(sb,{attributes:true,attributeFilter:['class']});
 }
