@@ -2,6 +2,32 @@
   "version": 1,
   "modules": [
     {
+      "id": "dashboard",
+      "title": "لوحة الخادم",
+      "icon": "📊",
+      "roles": [
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/dashboard/index.js",
+      "enabled": true
+    },
+    {
+      "id": "profile",
+      "title": "ملف المخدوم",
+      "icon": "🧑‍🎓",
+      "roles": [
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/profile/index.js",
+      "enabled": true
+    },
+    {
       "id": "board",
       "title": "لوحة التميز",
       "icon": "🏆",
@@ -136,6 +162,17 @@
       ],
       "type": "module",
       "entry": "modules/owner/staff.js",
+      "enabled": true
+    },
+    {
+      "id": "assign",
+      "title": "إسناد المخدومين",
+      "icon": "🔗",
+      "roles": [
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/owner/assign.js",
       "enabled": true
     },
     {
