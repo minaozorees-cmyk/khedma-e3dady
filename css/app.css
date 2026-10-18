@@ -243,3 +243,7 @@ nav.noact .gl-glider{opacity:0}
 .sidebar nav,nav#nav{--h:58px;flex:none;margin-bottom:12px}
 .sidebar nav a,nav#nav a{font-size:15px;gap:14px;padding:0 20px}
 .sidebar nav a .i,nav#nav a .i{font-size:1.3rem;width:1.8rem}
+
+/* v9.33 — شريط القوائم الثابت في القراءة */
+.rd-pick{position:sticky;top:0;z-index:20;display:flex;gap:8px;padding:8px 0 10px;margin-bottom:6px;background:var(--bg)}
+.rd-pick select{flex:1;min-width:0;min-height:46px;font-family:'Cairo',sans-serif;font-size:14px;font-weight:600;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg-2);color:var(--ink)}
