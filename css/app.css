@@ -247,3 +247,10 @@ nav.noact .gl-glider{opacity:0}
 /* v9.33 — شريط القوائم الثابت في القراءة */
 .rd-pick{position:sticky;top:0;z-index:20;display:flex;gap:8px;padding:8px 0 10px;margin-bottom:6px;background:var(--bg)}
 .rd-pick select{flex:1;min-width:0;min-height:46px;font-family:'Cairo',sans-serif;font-size:14px;font-weight:600;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg-2);color:var(--ink)}
+
+/* v9.35 — الاستماع للإصحاح */
+.tts-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 12px}
+.tts-bar .btn{width:auto;min-height:42px;margin:0;padding:8px 14px;font-size:.9rem}
+.tts-bar select{width:auto;min-height:42px;padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg-2);color:var(--ink);font-family:'Cairo',sans-serif}
+.tts-msg{flex-basis:100%;margin:0}
+.ver.tts-on{background:color-mix(in srgb,var(--gold) 22%,transparent);border-radius:8px;transition:background .2s}
