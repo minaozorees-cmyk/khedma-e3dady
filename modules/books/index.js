@@ -8,6 +8,7 @@ import * as AC from '../../js/access.js';
 import {checkUpdate} from '../../js/update.js';
 import {esc} from '../../js/consts.js';
 import {n} from '../../js/dates.js';
+import * as TTS from '../../js/tts.js';
 
 const AR='٠١٢٣٤٥٦٧٨٩';
 const mmss=(ms)=>{ const s=Math.ceil(Math.max(0,ms)/1000); return (n(Math.floor(s/60))+':'+String(s%60).padStart(2,'0')).replace(/\d/g,d=>AR[d]); };
@@ -82,7 +83,7 @@ export async function mount(el,ctx){
     async books(){
       let rc=''; if(sess){ const f=findCh(sess.bid,sess.num);
         if(f) rc=`<div class="card2"><b>⏸ عندك امتحان مفتوح</b><div class="hint">${esc(f.b.title)} — إصحاح ${n(sess.num)}</div><button class="btn" data-a="resume">كمّل من النقطة</button></div>`; }
-      if(!books.length) return `<div class="ph">📖 لا توجد أسفار بعد.<br>تُضاف الأسفار كملفات JSON في مجلد books/</div>${probs()}`;
+      if(!books.length) return `<div class="ph">📖 لا توجد مسابقات بعد.<br>تُضاف كملفات JSON في مجلد books/</div>${probs()}`;
       return `${rc}<div class="gate">${books.map(b=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${n(b.chapters.length)} إصحاح</small></button>`).join('')}${probs()}</div>`;
     },
     async chapters(){
@@ -111,7 +112,7 @@ export async function mount(el,ctx){
       const c=chap(), left=st.readUntil-Date.now()>0&&!unlocked.has(ukey())?st.readUntil-Date.now():0;
       const okText=await ensureText(book(),c);   // v9.26: نص المكتبة (lazy) للإصحاحات اللي أسئلتها فقط
       const noText=okText?'':'<div class="card2"><div class="warn">تعذّر تحميل نص الإصحاح. افتح التطبيق مرة وانت متصل بالنت عشان النص يتخزّن على جهازك. تقدر تبدأ الامتحان بعد انتهاء وقت القراءة.</div></div>';
-      return `<div class="gate"><h3 class="ttl">${esc(book().title)} — إصحاح ${n(c.chapterNum)}</h3>${left?`<div class="hint" id="cd">⏳ وقت القراءة المتبقي: ${mmss(left)}</div>`:''}${noText}${c.sections.map(s=>`<div class="card2">${s.title?`<b>${esc(s.title)}</b>`:''}${s.imgCap?`<div class="hint">${esc(s.imgCap)}</div>`:''}${s.verses.map(v=>`<p class="ver">${v[0]?`<sup>${esc(v[0])}</sup> `:''}${esc(v[1])}</p>`).join('')}</div>`).join('')}
+      return `<div class="gate"><h3 class="ttl">${esc(book().title)} — إصحاح ${n(c.chapterNum)}</h3>${left?`<div class="hint" id="cd">⏳ وقت القراءة المتبقي: ${mmss(left)}</div>`:''}${noText}${TTS.bar()}${c.sections.map(s=>`<div class="card2">${s.title?`<b>${esc(s.title)}</b>`:''}${s.imgCap?`<div class="hint">${esc(s.imgCap)}</div>`:''}${s.verses.map(v=>`<p class="ver">${v[0]?`<sup>${esc(v[0])}</sup> `:''}${esc(v[1])}</p>`).join('')}</div>`).join('')}
         <button class="btn" id="go" data-a="start" ${left?'disabled':''}>${left?'ابدأ الامتحان بعد '+mmss(left):`ابدأ الامتحان (${n(c.questions.length)} سؤال)`}</button>${left&&staff?'<button class="btn sec" data-a="skip">⏩ تخطي وقت القراءة</button>':''}${back('toChap','رجوع للإصحاحات')}</div>`;
     },
     async exam(){
@@ -162,8 +163,8 @@ export async function mount(el,ctx){
     if(st.s==='resume'&&!sess) st={s:'chapters',bid:st.bid};
     let html=await views[st.s]();
     if(flash&&st.s!=='exam'){ html=`<div class="card2">ℹ️ ${esc(flash)}</div>`+html; flash=''; }
-    el.innerHTML=html; el.scrollTop=0;
-    if(st.s==='read') startTick();
+    TTS.stop(); el.innerHTML=html; el.scrollTop=0;
+    if(st.s==='read'){ TTS.bind(el); startTick(); }
   }
 
   // (v9.3) زر "إرسال": يرسل النتائج المعلّقة الآن + يفحص التحديث. لا يعيد رسم الشاشة (عشان الرسالة تفضل ظاهرة).
