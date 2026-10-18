@@ -6,7 +6,7 @@ import {esc} from '../../js/consts.js';
 const nz=s=>String(s||'').replace(/[ً-ٰٟ]/g,'').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').toLowerCase();
 export async function mount(el,{role}={}){
   if(role!=='owner'){ el.innerHTML='<div class="ph">هذه الصفحة للمالك فقط.</div>'; return; }
-  const S={staff:[],profs:[],sel:'',orig:new Set(),cur:new Set(),q:'',counts:new Map(),busy:false};
+  const S={staff:[],profs:[],sel:'',orig:new Set(),cur:new Set(),q:'',g:'',counts:new Map(),busy:false};
   const root=document.createElement('div'); root.className='gate'; root.style.maxWidth='760px'; el.replaceChildren(root);
   const say=(t,bad)=>{ const m=root.querySelector('#msg'); if(m) m.innerHTML=t?`<div class="${bad?'err':'hint'}">${esc(t)}</div>`:''; };
   async function load(){
@@ -15,7 +15,7 @@ export async function mount(el,{role}={}){
       const r=await SY.staffAdmin({action:'list'});
       if(!r.ok) throw new Error(r.reason==='nofn'?'الـEdge Function (staff-admin) غير منشورة.':'تعذّر تحميل الخدام.');
       S.staff=(r.users||[]).filter(u=>u.role==='servant').sort((a,b)=>String(a.name||a.email).localeCompare(String(b.name||b.email),'ar'));
-      S.profs=await all('/rest/v1/profiles?select=id,name,grade&deleted_at=is.null&archived_at=is.null&order=name.asc');
+      S.profs=await all('/rest/v1/profiles?select=id,name,grade,gender&deleted_at=is.null&archived_at=is.null&order=name.asc');
       const as=await all('/rest/v1/staff_profile_assignments?select=staff_uid,profile_id&order=staff_uid.asc,profile_id.asc');
       S.counts=new Map(); for(const a of as) S.counts.set(a.staff_uid,(S.counts.get(a.staff_uid)||0)+1);
       S.all=as;
@@ -27,7 +27,8 @@ export async function mount(el,{role}={}){
   }
   const dirty=()=>S.orig.size!==S.cur.size||[...S.cur].some(x=>!S.orig.has(x));
   function paint(){
-    const q=nz(S.q), list=S.profs.filter(p=>!q||nz(p.name).includes(q));
+    const q=nz(S.q), list=S.profs.filter(p=>(!q||nz(p.name).includes(q))&&(!S.g||p.gender===S.g));
+    const gl=S.g?(S.g==='ولد'?' (ولاد)':' (بنات)'):'';
     const grades=[...new Set(S.profs.map(p=>p.grade))];
     root.innerHTML=`<div id="msg"></div>
     <div class="card2"><b>🔗 إسناد المخدومين للخدام</b>
@@ -37,9 +38,10 @@ export async function mount(el,{role}={}){
     </div>
     ${S.sel?`<div class="card2">
       <div class="fld"><input id="q" placeholder="ابحث بالاسم…" autocomplete="off" value="${esc(S.q)}" aria-label="بحث"></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${grades.map(g=>`<button class="btn sec" style="${SB}" data-a="grade-on" data-g="${esc(g)}">+ كل ${esc(g)}</button>`).join('')}<button class="btn sec" style="${SB}" data-a="none">إلغاء الكل</button></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${[['','الكل'],['ولد','👦 ولاد'],['بنت','👧 بنات']].map(([v,l])=>`<button class="btn${S.g===v?'':' sec'}" style="${SB}" data-a="gender" data-v="${v}">${l}</button>`).join('')}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${grades.map(g=>`<button class="btn sec" style="${SB}" data-a="grade-on" data-g="${esc(g)}">+ كل ${esc(g)}${gl}</button>`).join('')}<button class="btn sec" style="${SB}" data-a="all-on">+ كل المعروضين</button><button class="btn sec" style="${SB}" data-a="none">إلغاء الكل</button></div>
       <p class="hint">المحدد: <b>${S.cur.size}</b> من ${S.profs.length}${dirty()?' — <b>تعديلات غير محفوظة</b>':''}</p>
-      <div style="max-height:50vh;overflow:auto">${list.map(p=>`<label class="chk"><input type="checkbox" data-id="${p.id}"${S.cur.has(p.id)?' checked':''}> ${esc(p.name)} <small class="k">· ${esc(p.grade)}</small></label>`).join('')||'<p class="hint">لا نتائج.</p>'}</div>
+      <div style="max-height:50vh;overflow:auto">${list.map(p=>`<label class="chk"><input type="checkbox" data-id="${p.id}"${S.cur.has(p.id)?' checked':''}> ${esc(p.name)} <small class="k">· ${esc(p.grade)} · ${esc(p.gender||'')}</small></label>`).join('')||'<p class="hint">لا نتائج.</p>'}</div>
       <button class="btn" data-a="save"${dirty()&&!S.busy?'':' disabled'}>حفظ الإسناد</button>
     </div>`:''}`;
   }
@@ -53,7 +55,9 @@ export async function mount(el,{role}={}){
     const t=e.target.closest('[data-a]'); if(!t||t.disabled) return; const a=t.dataset.a;
     if(a==='reload') return load();
     if(a==='none'){ S.cur.clear(); return paint2(); }
-    if(a==='grade-on'){ for(const p of S.profs) if(p.grade===t.dataset.g) S.cur.add(p.id); return paint2(); }
+    if(a==='gender'){ S.g=t.dataset.v; return paint2(); }
+    if(a==='grade-on'){ for(const p of S.profs) if(p.grade===t.dataset.g&&(!S.g||p.gender===S.g)) S.cur.add(p.id); return paint2(); }
+    if(a==='all-on'){ const q=nz(S.q); for(const p of S.profs) if((!q||nz(p.name).includes(q))&&(!S.g||p.gender===S.g)) S.cur.add(p.id); return paint2(); }
     if(a==='save'){
       const add=[...S.cur].filter(x=>!S.orig.has(x)), del=[...S.orig].filter(x=>!S.cur.has(x));
       if(del.length&&!confirm(`هتشيل ${del.length} مخدوم من الخادم ده. متأكد؟`)) return;
