@@ -15,7 +15,7 @@ export function setTheme(t){
 }
 
 // ── القائمة الجانبية ──
-export function openSidebar(){ $('#sidebar').classList.add('open'); $('#sbOverlay').classList.add('open'); }
+export function openSidebar(){ $('#sidebar').classList.add('open'); $('#sbOverlay').classList.add('open'); setTimeout(()=>{ const a=document.querySelector('#nav a.active'); if(a&&a.scrollIntoView) a.scrollIntoView({block:'center'}); },60); }
 export function closeSidebar(){ $('#sidebar').classList.remove('open'); $('#sbOverlay').classList.remove('open'); }
 export function setSection(t){ const e=$('#topSection'); if(e) e.textContent=t||''; }
 // إخفاء القائمة أثناء شاشة التسجيل/دخول الخدام (لا شيء يُتنقَّل إليه)
