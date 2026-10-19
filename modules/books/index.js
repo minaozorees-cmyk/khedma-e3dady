@@ -20,12 +20,19 @@ export async function mount(el,ctx){
   const {books,problems}=await loadAll();
   const prof=await A.activeProfile(), pid=prof?prof.id:'local', nm=esc((prof&&prof.name.split(' ')[0])||'حبيبي');
   const staff=ctx.role!=='student', isStudent=ctx.role==='student'&&!!prof, gated=ctx.role==='student'; // v9.21: القفل بالمواعيد على المخدوم فقط
-  let st={s:'books'}, flash='', tick=null, sess=null;
+  let st={s:'books'}, flash='', tick=null, sess=null, bt=null;   // bt: مؤقّت ظهور أسفار جديدة عند حلول ميعادها (v9.39)
   const unlocked=new Set(); // إصحاحات انتهى عدّاد قراءتها في هذه الجلسة
   const book=()=>books.find(b=>b.id===st.bid);
   const chap=()=>{ const b=book(); return b&&b.chapters.find(c=>c.chapterNum===st.num); };
   const findCh=(bid,num)=>{ const b=books.find(x=>x.id===bid), c=b&&b.chapters.find(x=>x.chapterNum===num); return c?{b,c}:null; };
   const ukey=()=>st.bid+'|'+st.num;
+  // (v9.39) للمخدوم: السفر يظهر فقط لو فيه إصحاح مفتوح الآن (بميعاد حلّ أو بدون ميعاد أو مفتوح بكود). الطاقم يرى كل الأسفار. الوقت من ساعة السيرفر/الموبايل ويشتغل أوفلاين.
+  const bookOpen=(b)=>b.chapters.some(c=>!AC.isLocked(b.id,c.chapterNum));
+  const shownBooks=()=>gated?books.filter(bookOpen):books;
+  // (v9.39) تكبير/تصغير الخط (نسبة مئوية) — يُحفظ على الجهاز
+  const ZK='quizZoom', ZMIN=80, ZMAX=160, ZSTEP=10;
+  let zoom=100; try{ const v=Number(localStorage.getItem(ZK)); if(Number.isFinite(v)&&v>=ZMIN&&v<=ZMAX) zoom=Math.round(v/ZSTEP)*ZSTEP; }catch(e){}
+  const zbar=()=>`<div class="zbar"><button class="zb" data-a="zout" aria-label="تصغير الخط"${zoom<=ZMIN?' disabled':''}>A−</button><span class="zl" id="zl">${n(zoom)}٪</span><button class="zb" data-a="zin" aria-label="تكبير الخط"${zoom>=ZMAX?' disabled':''}>A+</button></div>`;
   const me=(t)=>esc(t).replace(/\{name\}/g,nm);
   const back=(a,t)=>`<button class="btn sec" data-a="${a}">${t}</button>`;
   const answeredCount=(qs,ans)=>qs.filter((q,i)=>X.isAnswered(q,ans[i])).length;
@@ -91,7 +98,9 @@ export async function mount(el,ctx){
       let rc=''; if(sess){ const f=findCh(sess.bid,sess.num);
         if(f) rc=`<div class="card2"><b>⏸ عندك امتحان مفتوح</b><div class="hint">${esc(f.b.title)} — إصحاح ${n(sess.num)}</div><button class="btn" data-a="resume">كمّل من النقطة</button></div>`; }
       if(!books.length) return `<div class="ph">📖 لا توجد مسابقات بعد.<br>تُضاف كملفات JSON في مجلد books/</div>${probs()}`;
-      return `${rc}<div class="gate">${books.map(b=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${n(b.chapters.length)} إصحاح</small></button>`).join('')}${probs()}</div>`;
+      const vis=shownBooks();
+      if(!vis.length) return `${rc}<div class="ph">📖 لا يوجد امتحان مفتوح اليوم.<br><small>لو لسه ما فتحتش التطبيق بالنت من وقت قريب، افتحه مرة عشان توصلك آخر المواعيد.</small></div>`;
+      return `${rc}<div class="gate">${vis.map(b=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${n(b.chapters.length)} إصحاح</small></button>`).join('')}${probs()}</div>`;
     },
     async chapters(){
       const at=await R.all(), b=book();
@@ -119,12 +128,12 @@ export async function mount(el,ctx){
       const c=chap(), left=st.readUntil-Date.now()>0&&!unlocked.has(ukey())?st.readUntil-Date.now():0;
       const okText=await ensureText(book(),c);   // v9.26: نص المكتبة (lazy) للإصحاحات اللي أسئلتها فقط
       const noText=okText?'':'<div class="card2"><div class="warn">تعذّر تحميل نص الإصحاح. افتح التطبيق مرة وانت متصل بالنت عشان النص يتخزّن على جهازك. تقدر تبدأ الامتحان بعد انتهاء وقت القراءة.</div></div>';
-      return `<div class="gate"><h3 class="ttl">${esc(book().title)} — إصحاح ${n(c.chapterNum)}</h3>${left?`<div class="hint" id="cd">⏳ وقت القراءة المتبقي: ${mmss(left)}</div>`:''}${noText}${TTS.bar()}${c.sections.map(s=>`<div class="card2">${s.title?`<b>${esc(s.title)}</b>`:''}${s.imgCap?`<div class="hint">${esc(s.imgCap)}</div>`:''}${s.verses.map(v=>`<p class="ver">${v[0]?`<sup>${esc(v[0])}</sup> `:''}${esc(v[1])}</p>`).join('')}</div>`).join('')}
+      return `<div class="gate">${zbar()}<h3 class="ttl">${esc(book().title)} — إصحاح ${n(c.chapterNum)}</h3>${left?`<div class="hint" id="cd">⏳ وقت القراءة المتبقي: ${mmss(left)}</div>`:''}${noText}${TTS.bar()}${c.sections.map(s=>`<div class="card2">${s.title?`<b>${esc(s.title)}</b>`:''}${s.imgCap?`<div class="hint">${esc(s.imgCap)}</div>`:''}${s.verses.map(v=>`<p class="ver">${v[0]?`<sup>${esc(v[0])}</sup> `:''}${esc(v[1])}</p>`).join('')}</div>`).join('')}
         <button class="btn" id="go" data-a="${nextA(c)}" ${left?'disabled':''}>${goLabel(c,left)}</button>${left&&staff?'<button class="btn sec" data-a="skip">⏩ تخطي وقت القراءة</button>':''}${back('toChap','رجوع للإصحاحات')}</div>`;
     },
     async med(){   // (v9.38) بعد قراءة الإصحاح: الآية ثم التأمل، وبعدها الأسئلة
       const c=chap(), m=c.meditation;
-      return `<div class="gate"><h3 class="ttl">${esc(book().title)} — إصحاح ${n(c.chapterNum)}</h3>
+      return `<div class="gate">${zbar()}<h3 class="ttl">${esc(book().title)} — إصحاح ${n(c.chapterNum)}</h3>
         <div class="card2"><b>آية الإصحاح</b><p class="ver">«${esc(m.verseText)}» — ${esc(m.verseRef)}</p></div>
         <div class="card2"><b>تأمل</b><p class="ver">${me(m.meditation)}</p><p class="ver">${me(m.comment)}</p><p class="ver">💌 ${me(m.message)}</p></div>
         <button class="btn" data-a="start">ابدأ الامتحان (${n(examN(book(),c))} سؤال)</button>${back('toRead','رجوع للقراءة')}</div>`;
@@ -143,7 +152,7 @@ export async function mount(el,ctx){
           <ol class="tl">${picked.map(id=>`<li><button class="opt on" data-a="unpick" data-k="${q.events.indexOf(byId(id))}">${esc(byId(id).text)}</button></li>`).join('')}</ol>
           ${rest.map(e=>`<button class="opt" data-a="pick" data-k="${q.events.indexOf(e)}">${esc(e.text)}</button>`).join('')}`;
       } else body=st.opts[i].map(k=>`<button class="opt${a===k?' on':''}" data-a="ans" data-k="${k}">${esc(q.opts[k])}</button>`).join(''); // k = الـindex الأصلي
-      return `<div class="gate"><div class="hint">سؤال ${n(i+1)} من ${n(st.qs.length)}</div><div class="prog"><i style="width:${Math.round(100*i/st.qs.length)}%"></i></div>
+      return `<div class="gate">${zbar()}<div class="hint">سؤال ${n(i+1)} من ${n(st.qs.length)}</div><div class="prog"><i style="width:${Math.round(100*i/st.qs.length)}%"></i></div>
         <div class="card2">${q.type?`<small class="k">${esc(q.type)}</small>`:''}<div class="qt">${esc(q.q)}</div>${body}</div>
         <button class="btn" data-a="next" ${X.isAnswered(q,a)?'':'disabled'}>${last?'إنهاء':'التالي'}</button>${back('quit','خروج من الامتحان')}</div>`;
     },
@@ -172,7 +181,7 @@ export async function mount(el,ctx){
     },500);
   }
   async function render(){
-    clearInterval(tick);
+    clearInterval(tick); clearTimeout(bt);
     // حماية: لو تغيّر أو اختفى السفر/الإصحاح (بعد إعادة تحميل) نرجع لقائمة آمنة بدل ما نرمي خطأ
     if(['chapters','verses','read','med','exam','result','resume','locked'].includes(st.s)&&!book()) st={s:'books'};
     if(['read','med','exam','result','locked'].includes(st.s)&&!chap()) st=book()?{s:'chapters',bid:st.bid}:{s:'books'};
@@ -181,8 +190,10 @@ export async function mount(el,ctx){
     if(st.s==='resume'&&!sess) st={s:'chapters',bid:st.bid};
     let html=await views[st.s]();
     if(flash&&st.s!=='exam'){ html=`<div class="card2">ℹ️ ${esc(flash)}</div>`+html; flash=''; }
+    if(['read','med','exam','verses','result'].includes(st.s)) html=`<div class="zm" style="--qz:${zoom/100}">${html}</div>`;   // (v9.39) نطاق التكبير
     TTS.stop(); el.innerHTML=html; el.scrollTop=0;
     if(st.s==='read'){ TTS.bind(el); startTick(); }
+    if(gated&&st.s==='books'){ const w=AC.nextChangeIn(); if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&st.s==='books') render(); },Math.min(w+1000,2147e6)); }   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
   }
 
   // (v9.3) زر "إرسال": يرسل النتائج المعلّقة الآن + يفحص التحديث. لا يعيد رسم الشاشة (عشان الرسالة تفضل ظاهرة).
@@ -199,6 +210,13 @@ export async function mount(el,ctx){
   el.onclick=async(e)=>{
     const t=e.target.closest('[data-a]'); if(!t||t.disabled) return; const a=t.dataset.a, k=Number(t.dataset.k);
     if(a==='send'){ await sendNow(t); return; }
+    if(a==='zin'||a==='zout'){   // (v9.39) بدون إعادة رسم (عشان عدّاد القراءة والإجابات ما يتأثروش)
+      zoom=Math.min(ZMAX,Math.max(ZMIN,zoom+(a==='zin'?ZSTEP:-ZSTEP))); try{ localStorage.setItem(ZK,String(zoom)); }catch(x){}
+      const zm=el.querySelector('.zm'); if(zm) zm.style.setProperty('--qz',String(zoom/100));
+      const zl=el.querySelector('#zl'); if(zl) zl.textContent=n(zoom)+'٪';
+      const zi=el.querySelector('[data-a="zin"]'), zo=el.querySelector('[data-a="zout"]'); if(zi) zi.disabled=zoom>=ZMAX; if(zo) zo.disabled=zoom<=ZMIN;
+      return;
+    }
     if(NEED_CHAP.includes(a)&&!chap()){ st={s:'books'}; return render(); }
     if(a==='book'){ st={s:'chapters',bid:t.dataset.id}; }
     else if(a==='toBooks'){ st={s:'books'}; }
@@ -243,7 +261,7 @@ export async function mount(el,ctx){
   };
 
   // v9.21: مواعيد الإصحاحات — الكاش فوراً (يشتغل أوفلاين) والتحديث من السيرفر في الخلفية
-  if(gated){ await AC.load(); AC.refresh().then(ok=>{ if(ok&&(st.s==='chapters'||st.s==='verses'||st.s==='locked')&&el.isConnected) render(); }).catch(()=>{}); }
+  if(gated){ await AC.load(); AC.refresh().then(ok=>{ if(ok&&(st.s==='books'||st.s==='chapters'||st.s==='verses'||st.s==='locked')&&el.isConnected) render(); }).catch(()=>{}); }
   // عند الفتح: نحمّل الجلسة المحفوظة، ونغلق المنتهية (> ٦ ساعات) تلقائياً
   sess=await S.load();
   if(sess&&sess.profileId!==pid){ await S.clear(); sess=null; }
