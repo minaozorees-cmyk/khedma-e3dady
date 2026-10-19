@@ -3,13 +3,13 @@ import * as ACC from './accounts.js';
 const esc=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const PIN_IN='type="password" inputmode="numeric" maxlength="4" dir="ltr" autocomplete="off" style="text-align:center;letter-spacing:8px;font-size:1.3rem"';
 
-export function showPicker(root,{onAdd,onStaff}){
+export function showPicker(root,{onHome}){   // (v9.44) زر «الشاشة الرئيسية» بدل «إضافة مخدوم» و«دخول خادم / مالك»
   const L=ACC.list();
   root.innerHTML=`<div class="gate"><h2 class="ttl" style="text-align:center;margin:6px 0 14px">مين بيستخدم التطبيق؟</h2>
     <div>${L.map(a=>`<button type="button" class="btn sec acct" data-id="${esc(a.id)}"><span>${esc(a.name)}</span><span>${a.locked?'🔒':''}</span></button>`).join('')}</div>
     <div id="pkBody"></div>
-    ${L.length<ACC.MAX?'<button type="button" class="btn" id="pkAdd">➕ إضافة مخدوم</button>':'<p class="hint">وصلت للحد الأقصى (٣ حسابات). لإضافة غيره أزل حساباً من صفحة «أنا».</p>'}
-    <button type="button" class="btn sec" id="pkStaff">دخول خادم / مالك</button></div>`;
+    ${L.length<ACC.MAX?'':'<p class="hint">وصلت للحد الأقصى (٣ حسابات). لإضافة غيره أزل حساباً من صفحة «أنا».</p>'}
+    <button type="button" class="btn" id="pkHome">🏠 الشاشة الرئيسية</button></div>`;
   const body=root.querySelector('#pkBody'), $=(s)=>body.querySelector(s);
   const enter=(id)=>{ ACC.setActive(id); location.reload(); };
   const name=(id)=>(L.find(a=>a.id===id)||{}).name||'';
@@ -55,6 +55,5 @@ export function showPicker(root,{onAdd,onStaff}){
     };
   }
   root.querySelectorAll('.acct').forEach(b=>b.onclick=()=>{ const id=b.dataset.id; if(ACC.hasPin(id)) askPin(id); else enter(id); });
-  const add=root.querySelector('#pkAdd'); if(add) add.onclick=onAdd;
-  root.querySelector('#pkStaff').onclick=onStaff;
+  root.querySelector('#pkHome').onclick=onHome;
 }
