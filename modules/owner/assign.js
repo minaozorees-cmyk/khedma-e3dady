@@ -6,7 +6,7 @@ import {esc} from '../../js/consts.js';
 const nz=s=>String(s||'').replace(/[ً-ٰٟ]/g,'').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').toLowerCase();
 export async function mount(el,{role}={}){
   if(role!=='owner'){ el.innerHTML='<div class="ph">هذه الصفحة للمالك فقط.</div>'; return; }
-  const S={staff:[],profs:[],sel:'',orig:new Set(),cur:new Set(),q:'',g:'',counts:new Map(),busy:false};
+  const S={staff:[],profs:[],sel:'',orig:new Set(),cur:new Set(),q:'',g:'',counts:new Map(),busy:false,rules:[],rulesOk:true,rg:'',rn:''};
   const root=document.createElement('div'); root.className='gate'; root.style.maxWidth='760px'; el.replaceChildren(root);
   const say=(t,bad)=>{ const m=root.querySelector('#msg'); if(m) m.innerHTML=t?`<div class="${bad?'err':'hint'}">${esc(t)}</div>`:''; };
   async function load(){
@@ -19,8 +19,13 @@ export async function mount(el,{role}={}){
       const as=await all('/rest/v1/staff_profile_assignments?select=staff_uid,profile_id&order=staff_uid.asc,profile_id.asc');
       S.counts=new Map(); for(const a of as) S.counts.set(a.staff_uid,(S.counts.get(a.staff_uid)||0)+1);
       S.all=as;
+      await loadRules();   // (v9.42) لو جدول القواعد لسه ما اتعملش نكمّل بدونه
       if(S.sel) pick(S.sel); else paint();
     }catch(e){ root.innerHTML=`<div class="card2"><div class="err">${esc(e.message&&!e.status?e.message:errMsg(e))}</div><button class="btn sec" data-a="reload">إعادة المحاولة</button></div>`; }
+  }
+  async function loadRules(){
+    try{ S.rules=await all('/rest/v1/staff_assignment_rules?select=id,staff_uid,grade,gender&order=id.asc'); S.rulesOk=true; }
+    catch(e){ S.rules=[]; S.rulesOk=false; }
   }
   function pick(uid){
     S.sel=uid; S.orig=new Set((S.all||[]).filter(a=>a.staff_uid===uid).map(a=>a.profile_id)); S.cur=new Set(S.orig); paint();
@@ -43,9 +48,20 @@ export async function mount(el,{role}={}){
       <p class="hint">المحدد: <b>${S.cur.size}</b> من ${S.profs.length}${dirty()?' — <b>تعديلات غير محفوظة</b>':''}</p>
       <div style="max-height:50vh;overflow:auto">${list.map(p=>`<label class="chk"><input type="checkbox" data-id="${p.id}"${S.cur.has(p.id)?' checked':''}> ${esc(p.name)} <small class="k">· ${esc(p.grade)} · ${esc(p.gender||'')}</small></label>`).join('')||'<p class="hint">لا نتائج.</p>'}</div>
       <button class="btn" data-a="save"${dirty()&&!S.busy?'':' disabled'}>حفظ الإسناد</button>
+    </div>
+    <div class="card2"><b>📌 قواعد الإسناد التلقائي</b>
+      <p class="hint">أي مخدوم جديد (أو غيّر صفه/نوعه) يطابق القاعدة يتسند للخادم ده تلقائياً، حتى لو متسند لخدام تانيين. القاعدة ما بتمسحش إسناداً موجوداً، وما بتغيّرش الحاليين (للحاليين استخدم أزرار «+ كل …» فوق).</p>
+      ${S.rulesOk?`${(()=>{ const rgr=[...new Set([...grades,...S.rules.map(r=>r.grade)])], rg=S.rg&&rgr.includes(S.rg)?S.rg:(rgr[0]||''), rn=S.rn||S.g||'ولد';
+        return `<div class="fld"><label for="rg">الصف</label><select id="rg">${rgr.map(g=>`<option value="${esc(g)}"${g===rg?' selected':''}>${esc(g)}</option>`).join('')}</select></div>
+        <div class="fld"><label for="rn">النوع</label><select id="rn"><option value="ولد"${rn==='ولد'?' selected':''}>👦 ولاد</option><option value="بنت"${rn==='بنت'?' selected':''}>👧 بنات</option></select></div>
+        <button class="btn" data-a="rule-add"${rg?'':' disabled'}>📌 حفظ كقاعدة ثابتة</button>`; })()}
+      ${S.rules.filter(r=>r.staff_uid===S.sel).map(r=>`<div class="row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px"><span>${esc(r.grade)} · ${r.gender==='ولد'?'👦 ولاد':'👧 بنات'}</span><button class="x" data-a="rule-del" data-id="${Number(r.id)}">حذف</button></div>`).join('')||'<p class="hint">لا توجد قواعد لهذا الخادم.</p>'}`
+      :'<div class="err">جدول القواعد غير موجود: شغّل SQL v9.42 (20261019_auto_assignment_rules.sql) في Supabase ثم اضغط إعادة التحميل.</div>'}
     </div>`:''}`;
   }
   root.addEventListener('change',e=>{
+    if(e.target.id==='rg'){ S.rg=e.target.value; return; }
+    if(e.target.id==='rn'){ S.rn=e.target.value; return; }
     if(e.target.id==='sv'){ if(dirty()&&!confirm('فيه تعديلات غير محفوظة. تتجاهلها؟')){ e.target.value=S.sel; return; } S.sel=''; if(e.target.value) pick(e.target.value); else paint(); return; }
     const id=e.target.dataset&&e.target.dataset.id; if(id){ e.target.checked?S.cur.add(id):S.cur.delete(id); const h=root.querySelector('.hint b'); paint2(); }
   });
@@ -58,6 +74,21 @@ export async function mount(el,{role}={}){
     if(a==='gender'){ S.g=t.dataset.v; return paint2(); }
     if(a==='grade-on'){ for(const p of S.profs) if(p.grade===t.dataset.g&&(!S.g||p.gender===S.g)) S.cur.add(p.id); return paint2(); }
     if(a==='all-on'){ const q=nz(S.q); for(const p of S.profs) if((!q||nz(p.name).includes(q))&&(!S.g||p.gender===S.g)) S.cur.add(p.id); return paint2(); }
+    if(a==='rule-add'){
+      const sel=root.querySelector('#rg'), gn=root.querySelector('#rn'); const grade=sel&&sel.value, gender=gn&&gn.value; if(!S.sel||!grade||!gender) return;
+      S.rg=grade; S.rn=gender; t.disabled=true;
+      try{
+        await api('/rest/v1/staff_assignment_rules?on_conflict=staff_uid,grade,gender',{method:'POST',prefer:'resolution=ignore-duplicates,return=minimal',body:[{staff_uid:S.sel,grade,gender}]});
+        await loadRules(); paint2(); say('اتحفظت القاعدة ✅ — بتسري على المخدومين الجدد من دلوقتي.');
+      }catch(x){ paint2(); say(errMsg(x),true); }
+      return;
+    }
+    if(a==='rule-del'){
+      if(!confirm('حذف القاعدة؟ الإسنادات الموجودة بتفضل زي ما هي.')) return; t.disabled=true;
+      try{ await api(`/rest/v1/staff_assignment_rules?id=eq.${Number(t.dataset.id)}`,{method:'DELETE',prefer:'return=minimal'}); await loadRules(); paint2(); say('اتحذفت القاعدة.'); }
+      catch(x){ paint2(); say(errMsg(x),true); }
+      return;
+    }
     if(a==='save'){
       const add=[...S.cur].filter(x=>!S.orig.has(x)), del=[...S.orig].filter(x=>!S.cur.has(x));
       if(del.length&&!confirm(`هتشيل ${del.length} مخدوم من الخادم ده. متأكد؟`)) return;
