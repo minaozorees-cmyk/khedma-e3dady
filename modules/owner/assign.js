@@ -4,9 +4,11 @@ import * as SY from '../../js/sync.js';
 import {api,all,errMsg,SB} from '../../js/sapi.js';
 import {esc} from '../../js/consts.js';
 const nz=s=>String(s||'').replace(/[ً-ٰٟ]/g,'').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').toLowerCase();
+const ALL='*';   // (v9.43) علامة «الكل» داخل القاعدة
+const gLabel=g=>g===ALL?'كل الصفوف':g, nLabel=n=>n===ALL?'👦👧 الكل (ولاد وبنات)':n==='ولد'?'👦 ولاد':'👧 بنات';
 export async function mount(el,{role}={}){
   if(role!=='owner'){ el.innerHTML='<div class="ph">هذه الصفحة للمالك فقط.</div>'; return; }
-  const S={staff:[],profs:[],sel:'',orig:new Set(),cur:new Set(),q:'',g:'',counts:new Map(),busy:false,rules:[],rulesOk:true,rg:'',rn:''};
+  const S={staff:[],profs:[],sel:'',orig:new Set(),cur:new Set(),q:'',g:'',counts:new Map(),busy:false,rules:[],rulesOk:true,rgs:new Set(),rn:''};
   const root=document.createElement('div'); root.className='gate'; root.style.maxWidth='760px'; el.replaceChildren(root);
   const say=(t,bad)=>{ const m=root.querySelector('#msg'); if(m) m.innerHTML=t?`<div class="${bad?'err':'hint'}">${esc(t)}</div>`:''; };
   async function load(){
@@ -50,17 +52,19 @@ export async function mount(el,{role}={}){
       <button class="btn" data-a="save"${dirty()&&!S.busy?'':' disabled'}>حفظ الإسناد</button>
     </div>
     <div class="card2"><b>📌 قواعد الإسناد التلقائي</b>
-      <p class="hint">أي مخدوم جديد (أو غيّر صفه/نوعه) يطابق القاعدة يتسند للخادم ده تلقائياً، حتى لو متسند لخدام تانيين. القاعدة ما بتمسحش إسناداً موجوداً، وما بتغيّرش الحاليين (للحاليين استخدم أزرار «+ كل …» فوق).</p>
-      ${S.rulesOk?`${(()=>{ const rgr=[...new Set([...grades,...S.rules.map(r=>r.grade)])], rg=S.rg&&rgr.includes(S.rg)?S.rg:(rgr[0]||''), rn=S.rn||S.g||'ولد';
-        return `<div class="fld"><label for="rg">الصف</label><select id="rg">${rgr.map(g=>`<option value="${esc(g)}"${g===rg?' selected':''}>${esc(g)}</option>`).join('')}</select></div>
-        <div class="fld"><label for="rn">النوع</label><select id="rn"><option value="ولد"${rn==='ولد'?' selected':''}>👦 ولاد</option><option value="بنت"${rn==='بنت'?' selected':''}>👧 بنات</option></select></div>
-        <button class="btn" data-a="rule-add"${rg?'':' disabled'}>📌 حفظ كقاعدة ثابتة</button>`; })()}
-      ${S.rules.filter(r=>r.staff_uid===S.sel).map(r=>`<div class="row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px"><span>${esc(r.grade)} · ${r.gender==='ولد'?'👦 ولاد':'👧 بنات'}</span><button class="x" data-a="rule-del" data-id="${Number(r.id)}">حذف</button></div>`).join('')||'<p class="hint">لا توجد قواعد لهذا الخادم.</p>'}`
+      <p class="hint">أي مخدوم جديد (أو غيّر صفه/نوعه) يطابق القاعدة يتسند للخادم ده تلقائياً، حتى لو متسند لخدام تانيين. اختيار «الكل» (صف أو نوع) بيشمل كمان أي صف يتضاف بعدين. القاعدة ما بتمسحش إسناداً موجوداً، وما بتغيّرش الحاليين (للحاليين استخدم أزرار «+ كل …» فوق).</p>
+      ${S.rulesOk?`${(()=>{ const rgr=[...new Set([...grades,...S.rules.map(r=>r.grade).filter(g=>g!==ALL)])], rn=S.rn||(S.g||ALL), allOn=S.rgs.has(ALL);
+        return `<div class="fld"><label>الصف <small>(اختر واحد أو أكتر)</small></label>
+          <label class="chk"><input type="checkbox" data-rg="${ALL}"${allOn?' checked':''}> <b>كل الصفوف</b> <small class="k">· يشمل أي صف يُضاف مستقبلاً</small></label>
+          ${rgr.map(g=>`<label class="chk"><input type="checkbox" data-rg="${esc(g)}"${S.rgs.has(g)&&!allOn?' checked':''}${allOn?' disabled':''}> ${esc(g)}</label>`).join('')}</div>
+        <div class="fld"><label for="rn">النوع</label><select id="rn"><option value="${ALL}"${rn===ALL?' selected':''}>👦👧 الكل (ولاد وبنات)</option><option value="ولد"${rn==='ولد'?' selected':''}>👦 ولاد</option><option value="بنت"${rn==='بنت'?' selected':''}>👧 بنات</option></select></div>
+        <button class="btn" data-a="rule-add"${S.rgs.size?'':' disabled'}>📌 حفظ كقاعدة ثابتة</button>`; })()}
+      ${S.rules.filter(r=>r.staff_uid===S.sel).map(r=>`<div class="row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px"><span>${esc(gLabel(r.grade))} · ${nLabel(r.gender)}</span><button class="x" data-a="rule-del" data-id="${Number(r.id)}">حذف</button></div>`).join('')||'<p class="hint">لا توجد قواعد لهذا الخادم.</p>'}`
       :'<div class="err">جدول القواعد غير موجود: شغّل SQL v9.42 (20261019_auto_assignment_rules.sql) في Supabase ثم اضغط إعادة التحميل.</div>'}
     </div>`:''}`;
   }
   root.addEventListener('change',e=>{
-    if(e.target.id==='rg'){ S.rg=e.target.value; return; }
+    const rg=e.target.dataset&&e.target.dataset.rg; if(rg){ if(rg===ALL){ e.target.checked?(S.rgs=new Set([ALL])):S.rgs.clear(); } else { S.rgs.delete(ALL); e.target.checked?S.rgs.add(rg):S.rgs.delete(rg); } return paint2(); }
     if(e.target.id==='rn'){ S.rn=e.target.value; return; }
     if(e.target.id==='sv'){ if(dirty()&&!confirm('فيه تعديلات غير محفوظة. تتجاهلها؟')){ e.target.value=S.sel; return; } S.sel=''; if(e.target.value) pick(e.target.value); else paint(); return; }
     const id=e.target.dataset&&e.target.dataset.id; if(id){ e.target.checked?S.cur.add(id):S.cur.delete(id); const h=root.querySelector('.hint b'); paint2(); }
@@ -75,11 +79,13 @@ export async function mount(el,{role}={}){
     if(a==='grade-on'){ for(const p of S.profs) if(p.grade===t.dataset.g&&(!S.g||p.gender===S.g)) S.cur.add(p.id); return paint2(); }
     if(a==='all-on'){ const q=nz(S.q); for(const p of S.profs) if((!q||nz(p.name).includes(q))&&(!S.g||p.gender===S.g)) S.cur.add(p.id); return paint2(); }
     if(a==='rule-add'){
-      const sel=root.querySelector('#rg'), gn=root.querySelector('#rn'); const grade=sel&&sel.value, gender=gn&&gn.value; if(!S.sel||!grade||!gender) return;
-      S.rg=grade; S.rn=gender; t.disabled=true;
+      const gn=root.querySelector('#rn'), gender=gn&&gn.value, grades=[...S.rgs]; if(!S.sel||!grades.length||!gender) return;
+      S.rn=gender;
+      if(grades.includes(ALL)&&gender===ALL&&!confirm('قاعدة «كل الصفوف + الكل» هتسند كل مخدوم جديد لهذا الخادم. متأكد؟')) return;
+      t.disabled=true;
       try{
-        await api('/rest/v1/staff_assignment_rules?on_conflict=staff_uid,grade,gender',{method:'POST',prefer:'resolution=ignore-duplicates,return=minimal',body:[{staff_uid:S.sel,grade,gender}]});
-        await loadRules(); paint2(); say('اتحفظت القاعدة ✅ — بتسري على المخدومين الجدد من دلوقتي.');
+        await api('/rest/v1/staff_assignment_rules?on_conflict=staff_uid,grade,gender',{method:'POST',prefer:'resolution=ignore-duplicates,return=minimal',body:grades.map(grade=>({staff_uid:S.sel,grade,gender}))});
+        S.rgs.clear(); await loadRules(); paint2(); say(grades.length>1?`اتحفظت ${grades.length} قواعد ✅ — بتسري على المخدومين الجدد من دلوقتي.`:'اتحفظت القاعدة ✅ — بتسري على المخدومين الجدد من دلوقتي.');
       }catch(x){ paint2(); say(errMsg(x),true); }
       return;
     }
