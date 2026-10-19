@@ -15,7 +15,16 @@ export function setTheme(t){
 }
 
 // ── القائمة الجانبية ──
-export function openSidebar(){ $('#sidebar').classList.add('open'); $('#sbOverlay').classList.add('open'); setTimeout(()=>{ const a=document.querySelector('#nav a.active'); if(a&&a.scrollIntoView) a.scrollIntoView({block:'center'}); },60); }
+// (v9.412) عرض القائمة المفتوحة = أطول عنوان + الهوامش: نقيسه على نسخة مخفية بنفس الأنماط (لا تأثير على الأصل)
+export function fitSidebar(){
+  const sb=$('#sidebar'); if(!sb||!document.body.classList.contains('has-rail')) return;
+  const c=sb.cloneNode(true); c.removeAttribute('id'); c.classList.add('open','measure'); c.setAttribute('aria-hidden','true');
+  c.querySelectorAll('[id]').forEach(x=>{ if(x.id!=='nav') x.removeAttribute('id'); });
+  document.body.appendChild(c);
+  const w=Math.ceil(c.getBoundingClientRect().width)+2; c.remove();
+  sb.style.setProperty('--dw',Math.max(190,Math.min(w,Math.floor(innerWidth*.88)))+'px');
+}
+export function openSidebar(){ fitSidebar(); $('#sidebar').classList.add('open'); $('#sbOverlay').classList.add('open'); setTimeout(()=>{ const a=document.querySelector('#nav a.active'); if(a&&a.scrollIntoView) a.scrollIntoView({block:'center'}); },60); }
 export function closeSidebar(){ $('#sidebar').classList.remove('open'); $('#sbOverlay').classList.remove('open'); }
 export function setSection(t){ const e=$('#topSection'); if(e) e.textContent=t||''; }
 // إخفاء القائمة أثناء شاشة التسجيل/دخول الخدام (لا شيء يُتنقَّل إليه)
@@ -57,6 +66,7 @@ export function initUI(){
   $('#nav').addEventListener('click',e=>{ if(e.target.closest('a')) closeSidebar(); });
   stars();
   autoHideHeader();
+  edgeSwipe();
 }
 
 /* إخفاء الهيدر عند النزول وإظهاره عند الصعود (موبايل) */
@@ -75,8 +85,41 @@ function autoHideHeader(){
     else if(d<-10) set(false);
     if(Math.abs(d)>10||y<=40) last=y;
   },{passive:true});
+  // (v9.412) صفحات iframe (لوحة التميز، النتائج، المولّد) تسكرول داخلها: نلتقط سكرولها (capture) بنفس المنطق
+  const lastOf=new WeakMap();
+  const hook=(f)=>{ const go=()=>{ try{
+      const d=f.contentDocument; if(!d||d.__hh) return; d.__hh=1;
+      d.addEventListener('scroll',e=>{
+        if(!mq.matches) return; const el=e.target===d?d.scrollingElement:e.target; if(!el) return;
+        const y=el.scrollTop||0, p=lastOf.get(el)||0, dd=y-p;
+        if(Date.now()<lock){ lastOf.set(el,y); return; }
+        if(y<=40) set(false); else if(dd>10) set(true); else if(dd<-10) set(false);
+        if(Math.abs(dd)>10||y<=40) lastOf.set(el,y);
+      },{capture:true,passive:true});
+    }catch(x){} }; f.addEventListener('load',go); go(); };
+  new MutationObserver(ms=>{ for(const m of ms) m.addedNodes.forEach(n=>{ if(n.tagName==='IFRAME') hook(n); }); }).observe(main,{childList:true});
   addEventListener('hashchange',()=>{ set(false); last=0; });
   mq.addEventListener&&mq.addEventListener('change',()=>set(false));
   const sb=document.getElementById('sidebar');
   if(sb) new MutationObserver(()=>{ if(sb.classList.contains('open')) set(false); }).observe(sb,{attributes:true,attributeFilter:['class']});
+}
+
+/* (v9.412) سحب من الحافة اليمنى (منطقة الشريط) لليسار = فتح القائمة؛ سحب لليمين وهي مفتوحة = إغلاقها.
+   الحركة الرأسية الغالبة تُلغى (سكرول الشريط)، والمنطقة بعرض الشريط حتى لا تتعارض مع إيماءة الرجوع في الأندرويد. */
+function edgeSwipe(){
+  let sx=0, sy=0, on=false, mode='';
+  const RAIL=60;
+  addEventListener('touchstart',e=>{
+    on=false; if(e.touches.length!==1||!document.body.classList.contains('has-rail')) return;
+    const t=e.touches[0], open=$('#sidebar').classList.contains('open');
+    sx=t.clientX; sy=t.clientY; mode=open?'close':'open'; on=open||sx>=innerWidth-RAIL;
+  },{passive:true});
+  addEventListener('touchmove',e=>{
+    if(!on) return; const t=e.touches[0], dx=t.clientX-sx, dy=t.clientY-sy;
+    if(Math.abs(dy)>14&&Math.abs(dy)>Math.abs(dx)*1.2){ on=false; return; }
+    if(mode==='open'&&-dx>45){ on=false; openSidebar(); }
+    else if(mode==='close'&&dx>60){ on=false; closeSidebar(); }
+  },{passive:true});
+  addEventListener('touchend',()=>{ on=false; },{passive:true});
+  addEventListener('touchcancel',()=>{ on=false; },{passive:true});
 }
