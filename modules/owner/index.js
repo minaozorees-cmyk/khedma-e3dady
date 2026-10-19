@@ -35,7 +35,7 @@ export async function mount(el){
   async function paint(){
     libIdx=await LIB.index().catch(()=>[]);
     el.innerHTML=`<div class="gate"><div class="card2"><b>رفع أسئلة فقط (النص من المكتبة)</b>
-      <p class="hint">اختر السفر من المكتبة، ثم ملف JSON فيه الأسئلة فقط (ممكن أكتر من ملف مرة واحدة). نص الإصحاح بيتسحب من المكتبة وقت القراءة، وكل مواعيد الفتح والأكواد بتتطبّق عليه زي أي إصحاح.</p>
+      <p class="hint">اختر السفر من المكتبة، ثم ملف JSON لكل إصحاح فيه: الأسئلة + التأمل (آية التأمل verseText/verseRef + meditation + comment + message) — التأمل مطلوب، والإصحاح الناقص يُستبعد (ممكن أكتر من ملف مرة واحدة). نص الإصحاح بيتسحب من المكتبة وقت القراءة، وكل مواعيد الفتح والأكواد بتتطبّق عليه زي أي إصحاح.</p>
       ${libIdx.length?`<div class="fld"><label for="lbk">سفر المكتبة</label><select id="lbk">${libOpts()}</select></div>
       <button class="btn sec" id="qpick" disabled>اختيار ملفات الأسئلة JSON</button><input type="file" id="qf" accept="application/json,.json" multiple hidden>`:'<div class="err">تعذّر تحميل فهرس المكتبة (bible/index.json). تأكد إن مجلد bible اترفع على GitHub.</div>'}
       <div id="qrep"></div></div>
@@ -92,17 +92,20 @@ export async function mount(el){
       <div class="fld"><label for="qid">معرّف السفر (id)</label><input id="qid" dir="ltr" maxlength="60" autocomplete="off"></div>
       <div class="fld"><label for="qtl">اسم السفر</label><input id="qtl" maxlength="120"></div>
       <div class="fld"><label for="qrm">دقائق القراءة قبل الامتحان</label><input id="qrm" type="number" min="0" max="60" inputmode="numeric"></div>
+      <div class="fld"><label for="qqn">عدد أسئلة الامتحان (فاضي أو ٠ = كل الأسئلة، وإلا بيتسحب العدد ده عشوائياً)</label><input id="qqn" type="number" min="0" max="200" inputmode="numeric"></div>
       <div class="err" id="qerr"></div><div class="hint" id="qmsg"></div>
       <button class="btn" id="qup">رفع إلى السيرفر</button>`;
     const fill=()=>{ const t=srvList.find(b=>b.id===$('#qtg').value), isNew=!t;
       $('#qid').value=isNew?lid:t.id; $('#qtl').value=isNew?meta.title:t.title; $('#qrm').value=isNew?3:(t.read_minutes??3);
+      $('#qqn').value=''; if(!isNew) SY.booksGet(t.id).then(d=>{ const q=$('#qqn'); if(q&&$('#qtg')&&$('#qtg').value===t.id) q.value=(d&&d.qn)>0?d.qn:''; }).catch(()=>{});
       $('#qid').readOnly=!isNew; $('#qtl').readOnly=!isNew; };
     $('#qtg').onchange=fill; fill(); $('#qup').onclick=uploadQ;
   }
   async function uploadQ(){
-    const id=$('#qid').value.trim(), title=$('#qtl').value.trim(), rm=Number($('#qrm').value), err=$('#qerr'), msg=$('#qmsg'), btn=$('#qup');
+    const id=$('#qid').value.trim(), title=$('#qtl').value.trim(), rm=Number($('#qrm').value), qnv=$('#qqn').value.trim(), qn=qnv===''?0:Number(qnv), err=$('#qerr'), msg=$('#qmsg'), btn=$('#qup');
     err.textContent=''; msg.textContent='';
     if(!qp) return;
+    if(!Number.isInteger(qn)||qn<0||qn>200){ err.textContent='عدد الأسئلة بين ٠ و٢٠٠ (٠ = كل الأسئلة).'; return; }
     if(!ID_RE.test(id)){ err.textContent='المعرّف: حروف/أرقام/شرطة فقط (حتى ٦٠).'; return; }
     if(title.length<2){ err.textContent='اكتب اسم السفر.'; return; }
     if(!Number.isFinite(rm)||rm<0||rm>60){ err.textContent='دقائق القراءة بين ٠ و٦٠.'; return; }
@@ -113,10 +116,10 @@ export async function mount(el){
       const cur=(await g.json())[0], data=(cur&&cur.data)||{};
       if(data.lib&&data.lib!==qp.lib){ err.textContent=`السفر ده مربوط بسفر تاني في المكتبة (${data.lib}). اختر سفر المكتبة الصحيح أو معرّف تاني.`; return; }
       const {chapters,replaced}=mergeChapters(data.chapters,qp.chapters);
-      const p=await SY.staffApi('/rest/v1/books?on_conflict=id',{method:'POST',prefer:'resolution=merge-duplicates,return=minimal',body:{id,title,read_minutes:Math.floor(rm),data:{...data,chapters,lib:qp.lib}}});
+      const p=await SY.staffApi('/rest/v1/books?on_conflict=id',{method:'POST',prefer:'resolution=merge-duplicates,return=minimal',body:{id,title,read_minutes:Math.floor(rm),data:{...data,chapters,lib:qp.lib,qn}}});
       if(!p.ok){ err.textContent=fmtErr(p); return; }
       await dropFromCache(id);
-      msg.textContent=`تم الرفع ✅ — ${n(chapters.length)} إصحاح في السفر${replaced?` (استُبدل ${n(replaced)})`:''}. النص من المكتبة.`;
+      msg.textContent=`تم الرفع ✅ — ${n(chapters.length)} إصحاح في السفر${replaced?` (استُبدل ${n(replaced)})`:''}. النص من المكتبة. ${qn?`الامتحان بيسحب ${n(qn)} سؤال عشوائياً.`:'الامتحان بكل الأسئلة.'}`;
       qp=null; $('#lst').innerHTML=await listServer();
     }catch(x){ err.textContent=x&&x.status===401?'سجّل الدخول من جديد.':'تعذّر الاتصال بالسيرفر.'; }
     finally{ btn.disabled=false; }
@@ -134,13 +137,15 @@ export async function mount(el){
       <div class="fld"><label for="bid">معرّف السفر (id)</label><input id="bid" dir="ltr" maxlength="60" autocomplete="off" placeholder="مثال: judith"></div>
       <div class="fld"><label for="btl">اسم السفر</label><input id="btl" value="${esc(parsed.title)}" maxlength="120"></div>
       <div class="fld"><label for="brm">دقائق القراءة قبل الامتحان</label><input id="brm" type="number" min="0" max="60" value="3" inputmode="numeric"></div>
+      <div class="fld"><label for="bqn">عدد أسئلة الامتحان (فاضي = زي الحالي، ٠ = كل الأسئلة)</label><input id="bqn" type="number" min="0" max="200" inputmode="numeric"></div>
       <div class="err" id="uerr"></div><div class="hint" id="umsg"></div>
       <button class="btn" id="up">رفع إلى السيرفر</button>`;
     $('#up').onclick=upload;
   }
   async function upload(){
-    const id=$('#bid').value.trim(), title=$('#btl').value.trim(), rm=Number($('#brm').value), err=$('#uerr'), msg=$('#umsg'), btn=$('#up');
+    const id=$('#bid').value.trim(), title=$('#btl').value.trim(), rm=Number($('#brm').value), qnv=($('#bqn')||{value:''}).value.trim(), err=$('#uerr'), msg=$('#umsg'), btn=$('#up');
     err.textContent=''; msg.textContent='';
+    if(qnv!==''&&(!Number.isInteger(Number(qnv))||Number(qnv)<0||Number(qnv)>200)){ err.textContent='عدد الأسئلة بين ٠ و٢٠٠.'; return; }
     if(!ID_RE.test(id)){ err.textContent='المعرّف: حروف/أرقام/شرطة فقط (حتى ٦٠).'; return; }
     if(title.length<2){ err.textContent='اكتب اسم السفر.'; return; }
     if(!Number.isFinite(rm)||rm<0||rm>60){ err.textContent='دقائق القراءة بين ٠ و٦٠.'; return; }
@@ -149,7 +154,7 @@ export async function mount(el){
       const g=await SY.staffApi(`/rest/v1/books?id=eq.${encodeURIComponent(id)}&select=data`);
       if(!g.ok){ err.textContent=fmtErr(g); return; }
       const cur=(await g.json())[0], {chapters,replaced}=mergeChapters(cur&&cur.data&&cur.data.chapters,parsed.chapters);
-      const p=await SY.staffApi('/rest/v1/books?on_conflict=id',{method:'POST',prefer:'resolution=merge-duplicates,return=minimal',body:{id,title,read_minutes:Math.floor(rm),data:{chapters}}});
+      const p=await SY.staffApi('/rest/v1/books?on_conflict=id',{method:'POST',prefer:'resolution=merge-duplicates,return=minimal',body:{id,title,read_minutes:Math.floor(rm),data:{...((cur&&cur.data)||{}),chapters,...(qnv!==''?{qn:Number(qnv)}:{})}}});
       if(!p.ok){ err.textContent=fmtErr(p); return; }
       msg.textContent=`تم الرفع ✅ — ${chapters.length} إصحاح في السفر${replaced?` (استُبدل ${replaced})`:''}.`;
       parsed=null; $('#lst').innerHTML=await listServer();
