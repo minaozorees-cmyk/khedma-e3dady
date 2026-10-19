@@ -19,7 +19,7 @@ export function openSidebar(){ $('#sidebar').classList.add('open'); $('#sbOverla
 export function closeSidebar(){ $('#sidebar').classList.remove('open'); $('#sbOverlay').classList.remove('open'); }
 export function setSection(t){ const e=$('#topSection'); if(e) e.textContent=t||''; }
 // إخفاء القائمة أثناء شاشة التسجيل/دخول الخدام (لا شيء يُتنقَّل إليه)
-export function setNavVisible(v){ const b=$('#sidebarToggleBtn'); if(b) b.style.display=v?'':'none'; if(!v) closeSidebar(); }
+export function setNavVisible(v){ const b=$('#sidebarToggleBtn'); if(b) b.style.display=v?'':'none'; document.body.classList.toggle('has-rail',!!v); if(!v) closeSidebar(); }   // v9.41: شريط الأيقونات الدائم يظهر مع القائمة فقط
 
 // ── النجوم (خلفية خفيفة؛ تتوقف عند إخفاء الصفحة أو تفضيل تقليل الحركة) ──
 function stars(){
@@ -50,7 +50,7 @@ function stars(){
 export function initUI(){
   setTheme(getTheme());
   $('#themeBtn').onclick=()=>{ setTheme(getTheme()==='dark'?'light':'dark'); dispatchEvent(new Event('lawha:theme')); };
-  $('#sidebarToggleBtn').onclick=openSidebar;
+  $('#sidebarToggleBtn').onclick=openSidebar; { const rb=$('#railBtn'); if(rb) rb.onclick=openSidebar; }
   $('#sbClose').onclick=closeSidebar; $('#sbOverlay').onclick=closeSidebar;
   addEventListener('keydown',e=>{ if(e.key==='Escape') closeSidebar(); });
   addEventListener('hashchange',closeSidebar);
