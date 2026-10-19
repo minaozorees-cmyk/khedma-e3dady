@@ -133,6 +133,19 @@
       "enabled": true
     },
     {
+      "id": "contest",
+      "title": "متابعة المسابقة",
+      "icon": "🎯",
+      "roles": [
+        "servant",
+        "priest",
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/contest/index.js",
+      "enabled": true
+    },
+    {
       "id": "attendance",
       "title": "الحضور",
       "icon": "🗓️",
