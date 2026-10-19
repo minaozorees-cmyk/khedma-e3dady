@@ -1,5 +1,6 @@
 // شاشة الدخول الأول للمخدوم: تسجيل جديد / استرجاع بالكود
 import * as A from './auth.js';
+import * as ACC from './accounts.js';
 const GRADES=['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'];
 const esc=(s)=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -41,16 +42,36 @@ export function showGate(root,done,opts={}){
       body.querySelectorAll('.err').forEach(x=>x.textContent='');
       for(const k in er) body.querySelector('#e_'+k).textContent=er[k];
       if(Object.keys(er).length){ const f=body.querySelector('.err:not(:empty)'); f&&f.scrollIntoView({block:'center'}); return; }
-      const p=await A.register(d); showCode(p);
+      let p; try{ p=await A.register(d); }catch(e){ const m=body.querySelector('#e_name'); if(m) m.textContent=e&&e.message==='full'?'وصلت للحد الأقصى (٣ حسابات) على هذا الجهاز.':'تعذّر التسجيل، جرّب تاني.'; return; }
+      showCode(p);
     };
   }
+  const lockFlow=()=>{ const t=root.querySelector('.tabs2'); if(t) t.style.display='none'; const g=root.querySelector('#gBack'); if(g) g.style.display='none'; }; // بعد إنشاء الحساب: لا رجوع/تبديل تبويب وسط الخطوات
   function showCode(p){
+    lockFlow();
     body.innerHTML=`<div class="done"><h2>تم التسجيل ✅</h2><p>كود الاسترجاع الخاص بك:</p>
       <div class="code" id="rc">${esc(p.code)}</div><button class="btn sec" id="cp">نسخ الكود</button>
       <p class="warn">اكتب الكود في مكان آمن. لو فقدت جهازك ستحتاجه مع اسمك لاسترجاع حسابك.</p>
       <button class="btn" id="ok">متابعة</button></div>`;
     body.querySelector('#cp').onclick=()=>{ try{ navigator.clipboard.writeText(p.code); body.querySelector('#cp').textContent='تم النسخ'; }catch(e){} };
-    body.querySelector('#ok').onclick=done;
+    body.querySelector('#ok').onclick=()=>offerPin(p);
+  }
+  // (v9.40) لو على الجهاز أكثر من مخدوم نعرض وضع رقم سري (اختياري) قبل المتابعة
+  function offerPin(p){
+    if(ACC.count()<2||!ACC.pinSupported()||ACC.hasPin(p.id)) return done();
+    lockFlow();
+    const IN='type="password" inputmode="numeric" maxlength="4" dir="ltr" autocomplete="off" style="text-align:center;letter-spacing:8px;font-size:1.3rem"';
+    body.innerHTML=`<div class="done"><h2>🔒 رقم سري</h2><p class="hint">على الجهاز أكتر من مخدوم. اختار رقماً من ٤ أرقام عشان محدش يدخل على حسابك. (اختياري، وتقدر تضبطه بعدين من صفحة «أنا»)</p>
+      ${field('pn1','الرقم السري',`<input id="pn1" ${IN}>`)}${field('pn2','أعد كتابته',`<input id="pn2" ${IN}>`)}
+      <button class="btn" id="pns">حفظ الرقم</button><button class="btn sec" id="pnk">تخطّي</button></div>`;
+    body.querySelector('#pnk').onclick=()=>done();
+    body.querySelector('#pns').onclick=async()=>{
+      const a=ACC.validPin(body.querySelector('#pn1').value), b=ACC.validPin(body.querySelector('#pn2').value), e=body.querySelector('#e_pn1');
+      if(!a){ e.textContent='الرقم لازم يكون ٤ أرقام.'; return; }
+      if(a!==b){ e.textContent='الرقمان غير متطابقين.'; return; }
+      if(!(await ACC.setPin(p.id,a))){ e.textContent='تعذّر حفظ الرقم على هذا المتصفح.'; return; }
+      done();
+    };
   }
   function renderRes(){
     body.innerHTML=`<p class="hint">أدخل اسمك وكود الاسترجاع.</p>
@@ -59,11 +80,12 @@ export function showGate(root,done,opts={}){
     <div class="err" id="rerr"></div><button class="btn" id="rgo">استرجاع</button>`;
     body.querySelector('#rgo').onclick=async()=>{
       const r=await A.restore(body.querySelector('#rn').value,body.querySelector('#rc').value), m=body.querySelector('#rerr');
-      if(r.ok) return done();
+      if(r.ok) return offerPin(r.profile);
       m.textContent=({
         nolocal:'الاسترجاع على جهاز جديد يحتاج الاتصال بالسيرفر.',
         offline:'مفيش اتصال بالنت. جرّب تاني لما يرجع.',
         locked:'محاولات كتير غلط. استنى ساعة وجرّب تاني.',
+        full:'وصلت للحد الأقصى (٣ حسابات) على هذا الجهاز. أزل حساباً من صفحة «أنا» الأول.',
         unavailable:'الخدمة مش متاحة دلوقتي. جرّب بعد شوية.'
       })[r.reason]||'الاسم أو الكود غير صحيح.';
     };
