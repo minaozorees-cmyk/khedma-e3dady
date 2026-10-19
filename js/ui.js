@@ -18,14 +18,17 @@ export function setTheme(t){
 // (v9.412) عرض القائمة المفتوحة = أطول عنوان + الهوامش: نقيسه على نسخة مخفية بنفس الأنماط (لا تأثير على الأصل)
 export function fitSidebar(){
   const sb=$('#sidebar'); if(!sb||!document.body.classList.contains('has-rail')) return;
-  const c=sb.cloneNode(true); c.removeAttribute('id'); c.classList.add('open','measure'); c.setAttribute('aria-hidden','true');
+  const c=sb.cloneNode(true); c.removeAttribute('id'); c.classList.remove('rail'); c.classList.add('open','measure'); c.setAttribute('aria-hidden','true');
   c.querySelectorAll('[id]').forEach(x=>{ if(x.id!=='nav') x.removeAttribute('id'); });
   document.body.appendChild(c);
   const w=Math.ceil(c.getBoundingClientRect().width)+2; c.remove();
   sb.style.setProperty('--dw',Math.max(190,Math.min(w,Math.floor(innerWidth*.88)))+'px');
 }
-export function openSidebar(){ fitSidebar(); $('#sidebar').classList.add('open'); $('#sbOverlay').classList.add('open'); setTimeout(()=>{ const a=document.querySelector('#nav a.active'); if(a&&a.scrollIntoView) a.scrollIntoView({block:'center'}); },60); }
-export function closeSidebar(){ $('#sidebar').classList.remove('open'); $('#sbOverlay').classList.remove('open'); }
+export function openSidebar(){ fitSidebar(); const sb=$('#sidebar'); sb.classList.remove('rail'); sb.classList.add('open'); document.body.classList.add('rail-on'); const o=$('#sbOverlay'); o.classList.remove('clear'); o.classList.add('open'); setTimeout(()=>{ const a=document.querySelector('#nav a.active'); if(a&&a.scrollIntoView) a.scrollIntoView({block:'center'}); },60); }
+// (v9.413) ثلاث حالات: مخفية (افتراضي) ← شريط أيقونات (سحب من الحافة) ← درج كامل بالأسماء (زر ☰). أي ضغط خارج أو اختيار تبويب يرجّعها مخفية.
+export function showRail(){ if(!document.body.classList.contains('has-rail')) return; const sb=$('#sidebar'); sb.classList.remove('open'); sb.classList.add('rail'); document.body.classList.add('rail-on'); const o=$('#sbOverlay'); o.classList.add('open','clear'); }
+export function closeSidebar(){ $('#sidebar').classList.remove('open','rail'); document.body.classList.remove('rail-on'); const o=$('#sbOverlay'); o.classList.remove('open','clear'); }
+const isOpen=()=>$('#sidebar').classList.contains('open'), isRail=()=>$('#sidebar').classList.contains('rail');
 export function setSection(t){ const e=$('#topSection'); if(e) e.textContent=t||''; }
 // إخفاء القائمة أثناء شاشة التسجيل/دخول الخدام (لا شيء يُتنقَّل إليه)
 export function setNavVisible(v){ const b=$('#sidebarToggleBtn'); if(b) b.style.display=v?'':'none'; document.body.classList.toggle('has-rail',!!v); if(!v) closeSidebar(); }   // v9.41: شريط الأيقونات الدائم يظهر مع القائمة فقط
@@ -104,20 +107,23 @@ function autoHideHeader(){
   if(sb) new MutationObserver(()=>{ if(sb.classList.contains('open')) set(false); }).observe(sb,{attributes:true,attributeFilter:['class']});
 }
 
-/* (v9.412) سحب من الحافة اليمنى (منطقة الشريط) لليسار = فتح القائمة؛ سحب لليمين وهي مفتوحة = إغلاقها.
-   الحركة الرأسية الغالبة تُلغى (سكرول الشريط)، والمنطقة بعرض الشريط حتى لا تتعارض مع إيماءة الرجوع في الأندرويد. */
+/* (v9.413) سحب من الحافة اليمنى (شريط شفاف #edgeZone فوق الصفحات المضمّنة) لليسار = إظهار شريط الأيقونات.
+   وهو ظاهر: سحب آخر لليسار = الدرج الكامل، وسحب لليمين = إخفاء. السحب الرأسي الغالب يُلغى. */
 function edgeSwipe(){
   let sx=0, sy=0, on=false, mode='';
-  const RAIL=60;
+  const ZONE=22, RAIL=60;
   addEventListener('touchstart',e=>{
     on=false; if(e.touches.length!==1||!document.body.classList.contains('has-rail')) return;
-    const t=e.touches[0], open=$('#sidebar').classList.contains('open');
-    sx=t.clientX; sy=t.clientY; mode=open?'close':'open'; on=open||sx>=innerWidth-RAIL;
+    const t=e.touches[0]; sx=t.clientX; sy=t.clientY;
+    if(isOpen()){ mode='close'; on=true; }
+    else if(isRail()){ mode='rail'; on=true; }
+    else if(sx>=innerWidth-ZONE){ mode='show'; on=true; }
   },{passive:true});
   addEventListener('touchmove',e=>{
     if(!on) return; const t=e.touches[0], dx=t.clientX-sx, dy=t.clientY-sy;
     if(Math.abs(dy)>14&&Math.abs(dy)>Math.abs(dx)*1.2){ on=false; return; }
-    if(mode==='open'&&-dx>45){ on=false; openSidebar(); }
+    if(mode==='show'&&-dx>40){ on=false; showRail(); }
+    else if(mode==='rail'){ if(dx>60){ on=false; closeSidebar(); } else if(-dx>45&&sx>=innerWidth-RAIL){ on=false; openSidebar(); } }
     else if(mode==='close'&&dx>60){ on=false; closeSidebar(); }
   },{passive:true});
   addEventListener('touchend',()=>{ on=false; },{passive:true});
