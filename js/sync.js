@@ -5,6 +5,7 @@
 import * as db from './db.js';
 import {FN} from './functions.js';
 import * as A from './auth.js';
+import * as ACC from './accounts.js';
 import {SUPABASE_URL as BASE,SUPABASE_ANON_KEY as KEY} from './config.js';
 
 export const enabled=()=>!!(BASE&&KEY);
@@ -44,27 +45,28 @@ async function insert(table,row){
 // بعد استرجاع الحساب على جهاز جديد قد يكون الجهاز فقد ربط الملكية → ندّعي الملف بالكود
 async function ensureClaim(){
   const a=await token(); if(!a.fresh) return;
-  const p=await db.get('profile');
-  if(p&&p.code){ const r=await api('/rest/v1/rpc/claim_profile',{method:'POST',body:{p_id:p.id,p_code:p.code}}); if(!r.ok) throw await fail(r); }
+  for(const p of await ACC.allProfiles()){ // (v9.40) كل حسابات الجهاز لازم تتبع نفس الهوية المجهولة
+    if(p&&p.code){ const r=await api('/rest/v1/rpc/claim_profile',{method:'POST',body:{p_id:p.id,p_code:p.code}}); if(!r.ok) throw await fail(r); }
+  }
   a.fresh=false; await db.set('sbAuth',a);
 }
 
 // ===== معالجات المهام =====
 const rankOf=(atts,a)=>atts.filter(x=>x.bookId===a.bookId&&x.chapterNum===a.chapterNum).sort((x,y)=>x.at-y.at).findIndex(x=>x.id===a.id)+1;
-async function scrubLocal(p){ Object.assign(p,{synced:true,phone:'',email:'',guardianName:'',guardianPhone:''}); await db.set('profile',p); }
+async function scrubLocal(p){ Object.assign(p,{synced:true,phone:'',email:'',guardianName:'',guardianPhone:''}); await ACC.saveProfile(p); }
 const H={
   async 'profile.create'(j){
-    const p=await db.get('profile'); if(!p||p.id!==j.profileId) return 'drop';
+    const p=await ACC.profileOf(j.profileId); if(!p) return 'drop'; // (v9.40) حسب صاحب المهمة، لا الحساب النشط
     if(p.synced) return 'done';
     await insert('profiles',{id:p.id,code:p.code,name:p.name,name_norm:A.normName(p.name),phone:p.phone,grade:p.grade,gender:p.gender,
       email:p.email||null,guardian_name:p.guardianName||null,guardian_phone:p.guardianPhone||null,created_at:new Date(p.createdAt).toISOString()});
     // تأكيد السيرفر وصل → فقط الآن تُنفَّذ مهمة المسح المرتبطة (auth.scrubAfterAck تتحقق من after===j.id)
-    if(!(await A.scrubAfterAck(j.id))){ const q=await db.get('profile'); if(q) await db.set('profile',{...q,synced:true}); }
+    if(!(await A.scrubAfterAck(j.id,j.profileId))){ const q=await ACC.profileOf(j.profileId); if(q) await ACC.saveProfile({...q,synced:true}); }
     return 'done';
   },
   async 'profile.scrub'(j){
     // المسح الطبيعي يتم داخل scrubAfterAck. هنا حالة السباق فقط: وصل التأكيد قبل إضافة مهمة المسح.
-    const p=await db.get('profile'); if(p&&p.id===j.profileId&&p.synced) await scrubLocal(p);
+    const p=await ACC.profileOf(j.profileId); if(p&&p.synced) await scrubLocal(p);
     const waiting=(await db.pending()).some(x=>x.id===j.after);
     return waiting?'skip':'done'; // لو مهمة الرفع لم تُؤكد بعد لا نمسح أبداً
   },
@@ -107,8 +109,7 @@ async function reconcile(p){
 let curJob='';   // v9.10: لتشخيص آخر فشل (يُعرض في زر الإرسال)
 async function pass(){
   curJob='reconcile';
-  const p=await A.activeProfile();
-  await reconcile((await A.getRole())==='student'?p:null); // جلسة خادم/مالك لا تُصعّد نتائج ملف مخدوم على نفس الجهاز
+  if((await A.getRole())==='student') for(const p of await ACC.allProfiles()) await reconcile(p); // جلسة خادم/مالك لا تُصعّد نتائج ملف مخدوم على نفس الجهاز
   const jobs=(await db.pending()).filter(j=>!j.dead&&H[j.type]);
   if(!jobs.length) return;
   curJob='auth'; await ensureClaim();
