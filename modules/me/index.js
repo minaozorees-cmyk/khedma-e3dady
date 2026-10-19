@@ -1,6 +1,8 @@
 import * as A from '../../js/auth.js';
 import * as B from '../../js/backup.js';
 import * as db from '../../js/db.js';
+import * as ACC from '../../js/accounts.js';
+import * as SY from '../../js/sync.js';
 import * as D from '../../js/dates.js';
 import * as LIB from '../../js/library.js';
 import * as R from '../../js/results.js';
@@ -22,6 +24,7 @@ export async function mount(el){
   const [st,lb,last,ag,lit,attempts,session,bookData] = await Promise.all([
     db.get('settings').catch(()=>null),db.get('lastBackup').catch(()=>null),LIB.getLast().catch(()=>null),db.get('agpeya').catch(()=>null),db.get('liturgy').catch(()=>null),R.all().catch(()=>[]),EX.load().catch(()=>null),loadAll().catch(()=>({books:[]}))
   ]);
+  const hasPin=ACC.hasPin(p.id);
   const settings=st||{}, notifOK=typeof Notification!=='undefined', perm=notifOK?Notification.permission:'unsupported';
   let idx=[]; try{idx=await LIB.index();}catch(e){}
   const lastBook=last&&idx.find(x=>x.id===last.id);
@@ -73,8 +76,13 @@ export async function mount(el){
       <label class="chk"><input type="checkbox" id="rm" ${settings.remind===false?'':'checked'}> تفعيل التذكيرات داخل التطبيق</label>
       <button class="btn sec" id="nt" ${perm==='granted'||perm==='denied'||!notifOK?'disabled':''}>${!notifOK?'الإشعارات غير مدعومة':perm==='granted'?'إشعارات الجهاز مفعّلة':perm==='denied'?'الإشعارات محجوبة من إعدادات المتصفح':'تفعيل إشعارات الجهاز'}</button>
       <div class="hint">الإشعار يظهر عند فتح التطبيق بنص عام ("تذكير من التطبيق")، وقد تحتاج بعض هواتف الأندرويد لاستثناء التطبيق من توفير البطارية.</div></div>
-    <button class="btn sec" id="lo">تسجيل الخروج</button>
-    <p class="hint">الخروج لا يمسح بياناتك من الجهاز، ويمكنك الرجوع بالاسم والكود.</p></div>`;
+    <div class="card2"><b>👥 الحسابات على هذا الجهاز</b>
+      <p class="hint">${ar(ACC.count())} من ${ar(ACC.MAX)} حسابات. تبديل المخدوم لا يمسح أي بيانات. الرقم السري يُطلب فقط لما يكون على الجهاز أكتر من حساب.</p>
+      <button class="btn" id="sw">🔁 تبديل المخدوم</button>
+      <button class="btn sec" id="pinb">🔒 ${hasPin?'تغيير الرقم السري':'وضع رقم سري'}</button>${hasPin?'<button class="btn sec" id="pinx">إلغاء الرقم السري</button>':''}
+      <div id="pinbox"></div>
+      <button class="btn sec" id="rmv" style="color:var(--rust)">🗑️ إزالة هذا الحساب من الجهاز</button>
+      <div class="hint" id="acm"></div></div></div>`;
   const $=(s)=>el.querySelector(s), msg=(t)=>{ const m=$('#bm'); if(m) m.textContent=t; };
   el.onclick=(e)=>{ const t=e.target.closest('[data-go]'); if(t) location.hash='#/'+t.dataset.go; };
   const doExport=(share)=>async()=>{ try{ await B.exportFile(share); msg('تم حفظ النسخة ✅'); }catch(e){ if(e&&e.name!=='AbortError') msg('تعذّر حفظ الملف'); } };
@@ -94,5 +102,33 @@ export async function mount(el){
     if(r==='granted'){ try{ await (await navigator.serviceWorker.ready).showNotification('تذكير من التطبيق',{body:'تم تفعيل الإشعارات',icon:new URL('../../icons/icon-192.png',import.meta.url).href}); }catch(e){} }
     mount(el);
   };
-  $('#lo').onclick=async()=>{ await A.logout(); location.reload(); };
+  const am=(t)=>{ const m=$('#acm'); if(m) m.textContent=t; };
+  $('#sw').onclick=()=>{ A.logout(); location.reload(); };
+  $('#pinb').onclick=()=>{
+    if(!ACC.pinSupported()){ am('المتصفح ده لا يدعم حفظ الرقم السري.'); return; }
+    const IN='type="password" inputmode="numeric" maxlength="4" dir="ltr" autocomplete="off" style="text-align:center;letter-spacing:8px"';
+    $('#pinbox').innerHTML=`${hasPin?`<div class="fld"><label>الرقم الحالي</label><input id="pc" ${IN}></div>`:''}
+      <div class="fld"><label>الرقم الجديد (٤ أرقام)</label><input id="p1" ${IN}></div>
+      <div class="fld"><label>أعد كتابته</label><input id="p2" ${IN}></div><button class="btn" id="ps">حفظ</button>`;
+    $('#ps').onclick=async()=>{
+      if(hasPin){ const r=await ACC.verifyPin(p.id,$('#pc').value); if(!r.ok){ am(r.locked?'محاولات كتير غلط. استنى ٥ دقايق.':'الرقم الحالي غلط.'); return; } }
+      const a=ACC.validPin($('#p1').value), b=ACC.validPin($('#p2').value);
+      if(!a){ am('الرقم لازم يكون ٤ أرقام.'); return; }
+      if(a!==b){ am('الرقمان غير متطابقين.'); return; }
+      if(await ACC.setPin(p.id,a)) mount(el); else am('تعذّر حفظ الرقم.');
+    };
+  };
+  const px=$('#pinx'); if(px) px.onclick=async()=>{
+    const v=prompt('اكتب الرقم السري الحالي لإلغائه'); if(v==null) return;
+    const r=await ACC.verifyPin(p.id,v); if(!r.ok){ am(r.locked?'محاولات كتير غلط. استنى ٥ دقايق.':'الرقم غلط.'); return; }
+    await ACC.clearPin(p.id); mount(el);
+  };
+  $('#rmv').onclick=async()=>{
+    if(!confirm('هتتشال «'+p.name+'» من الجهاز مع سجلات الأجبية والقداسات والاعتراف والرسائل. تأكد إنك حافظ كود الاسترجاع ('+p.code+') ونسخة احتياطية. متأكد؟')) return;
+    if(ACC.hasPin(p.id)){ const v=prompt('اكتب الرقم السري للتأكيد'); if(v==null) return; const r=await ACC.verifyPin(p.id,v); if(!r.ok){ am(r.locked?'محاولات كتير غلط. استنى ٥ دقايق.':'الرقم غلط.'); return; } }
+    am('جارٍ رفع البيانات المعلّقة…'); try{ await SY.flush(); }catch(e){}
+    const r=await ACC.remove(p.id);
+    if(!r.ok){ am('في '+ar(r.n)+' بيانات لسه ما اترفعتش للسيرفر. اتصل بالنت وجرّب تاني.'); return; }
+    location.reload();
+  };
 }
