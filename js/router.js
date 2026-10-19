@@ -1,6 +1,7 @@
 // يبني القائمة من modules/registry.json حسب الدور، ويفتح الوحدة عبر hash (#/id)
 // (v9.2) الدور يُقرأ من JWT (kv.staff) فقط؛ شاشة الدخول موحّدة بلا اختيار دور؛ التوجيه بعد الدخول حسب الدور.
-import {getRole,activeProfile} from './auth.js';
+import {getRole,activeProfile,logout,ROLE_LABEL} from './auth.js';
+import * as EX from './exam-session.js';
 import * as db from './db.js';
 import {showGate} from './register.js';
 import * as ACC from './accounts.js';
@@ -45,7 +46,7 @@ function buildNav(){
 // شاشة الدخول الموحّدة. hasProfile=true: الجهاز عليه ملف مخدوم، فنخفي أزرار "حساب جديد/عندي كود".
 function renderLogin(hasProfile){
   const main=$('main'); main.onclick=main.onchange=main.oninput=null;
-  setNavVisible(false); showVotd(false); resetWelcome(); setSection('دخول');
+  setNavVisible(false); hideWho(); showVotd(false); resetWelcome(); setSection('دخول');
   showLogin(main,{
     students:!hasProfile,
     onForgot:()=>{ setSection('نسيت كلمة السر'); showForgot(main,{onBack:()=>renderLogin(hasProfile)}); },
@@ -57,24 +58,33 @@ function renderLogin(hasProfile){
 function renderEntry(){ if(ACC.count()>0) renderPicker(); else renderLogin(false); }
 function renderPicker(){
   const main=$('main'); main.onclick=main.onchange=main.oninput=null;
-  setNavVisible(false); showVotd(false); resetWelcome(); setSection('اختيار المخدوم');
+  setNavVisible(false); hideWho(); showVotd(false); resetWelcome(); setSection('اختيار المخدوم');
   showPicker(main,{onAdd:()=>openGate('n'),onStaff:()=>renderLogin(true)});
 }
 function openGate(initial){
-  showVotd(false); resetWelcome(); setSection('حساب جديد');
+  hideWho(); showVotd(false); resetWelcome(); setSection('حساب جديد');
   showGate($('main'),()=>{ history.replaceState(null,'','#/'); location.reload(); },{initial,onBack:renderEntry}); // إعادة تحميل: حالة الذاكرة تبدأ نظيفة للحساب الجديد
 }
 async function forcePw(){
   const main=$('main'); main.onclick=main.onchange=main.oninput=null;
-  setNavVisible(false); showVotd(false); resetWelcome(); setSection('تغيير كلمة السر'); main.innerHTML='';
+  setNavVisible(false); hideWho(); showVotd(false); resetWelcome(); setSection('تغيير كلمة السر'); main.innerHTML='';
   try{ const mod=await import('../modules/account/index.js'); await mod.mount(main,{forced:true,onDone:()=>route()}); }
   catch(e){ main.innerHTML='<div class="ph">تعذّر تحميل الصفحة.</div>'; }
+}
+// (v9.40) اسم المخدوم/الخادم في الهيدر + زر «تبديل المخدوم» جنب «دخول» (للمخدوم فقط). يُخفيان في شاشات الدخول والاختيار.
+function hideWho(){ const w=$('#whoName'), s=$('#switchBtn'); if(w) w.style.display='none'; if(s) s.style.display='none'; }
+async function paintWho(){
+  const w=$('#whoName'), s=$('#switchBtn'); let name='';
+  try{ if(role==='student'){ const p=await activeProfile(); name=p&&p.name?String(p.name).trim():''; }
+    else{ const st=await db.get('staff'); name=(st&&st.name&&String(st.name).trim())||ROLE_LABEL[role]||''; } }catch(e){}
+  if(w){ w.textContent=name?'👤 '+name:''; w.style.display=name?'':'none'; }
+  if(s) s.style.display=role==='student'&&name?'':'none';
 }
 async function route(){
   refreshReminders();
   if(role==='student' && !(await activeProfile())){ renderEntry(); return; }
   if(role!=='student'){ const st=await db.get('staff'); if(st&&st.mustChange){ forcePw(); return; } }   // كلمة سر مؤقتة ⇒ تغيير إجباري
-  setNavVisible(true); showVotd(true);
+  setNavVisible(true); showVotd(true); paintWho();
   { const src=role==='student'?await activeProfile():await db.get('staff'); const nm=src&&src.name?String(src.name).trim().split(/\s+/)[0]:''; maybeWelcome(role,nm); }
   const v=visible(), id=location.hash.replace('#/','')||land();
   const m=v.find(x=>x.id===id)||v[0], main=$('main');
@@ -103,6 +113,12 @@ export async function start(){
   btn.onclick=async()=>{
     if(role!=='student'){ await SY.staffLogout(); return; }  // staffLogout يطلق lawha:role فيُعاد بناء الواجهة
     renderLogin(ACC.count()>0);
+  };
+  const sw=$('#switchBtn');
+  if(sw) sw.onclick=async()=>{ // تبديل المخدوم: لا يمسح شيئاً. لو فيه امتحان مفتوح نسأل (الامتحان بيتحفظ ويكمل لما يرجع لحسابه)
+    const s=await EX.load().catch(()=>null);
+    if(s&&!EX.expired(s)&&!confirm('فيه امتحان مفتوح. هيتحفظ ويكمل لما ترجع لحسابك. تبدّل؟')) return;
+    logout(); location.reload();
   };
   addEventListener('lawha:role',applyRole); // بعد دخول/خروج أو سحب الدور من الحساب
   addEventListener('lawha:unread',(e)=>setUnread(e.detail));
