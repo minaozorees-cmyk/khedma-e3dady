@@ -42,7 +42,7 @@ export async function mount(el,{role}={}){
   if(role!=='owner'){ el.innerHTML='<div class="ph">هذه الصفحة للمالك فقط.</div>'; return; }
   if(!SY.enabled()){ el.innerHTML='<div class="ph">المزامنة غير مفعّلة (js/config.js فاضي).</div>'; return; }
   let t0='m'; try{ if(sessionStorage.getItem('ownerTab')==='r'){ t0='r'; sessionStorage.removeItem('ownerTab'); } }catch(e){}
-  const S={tab:t0,f:'active',q:'',sel:null,members:[],act:new Map(),sess:[],audit:{page:0,tbl:'',rows:[],more:false},req:{rows:[],open:null,done:null,err:''},pend:0,staff:[],staffOk:false};
+  const S={tab:t0,f:'active',q:'',sel:null,members:[],act:new Map(),sess:[],audit:{page:0,tbl:'',rows:[],more:false},req:{rows:[],open:null,done:null,err:''},pend:0,staff:[],staffOk:false,svs:[],asg:new Map(),asgOk:false,asel:null,acur:new Set(),abusy:false};
   const root=document.createElement('div'); root.className='gate'; root.style.maxWidth='720px';
   el.innerHTML=''; el.appendChild(root);
   const $=(s)=>root.querySelector(s);
@@ -57,7 +57,38 @@ export async function mount(el,{role}={}){
       S.act=new Map((await all('/rest/v1/profile_activity?select=profile_id,last_seen,sessions&order=profile_id.asc')).map(a=>[a.profile_id,a]));
       say('');
     }catch(e){ say(errMsg(e)+' (تأكد أن schema.sql v9 اتشغّل.)',true); }
+    await loadAssign();
     paintBody();
+  }
+  // (v9.43) الخدام + الإسنادات الحالية، لعرض/تعديل خادم كل مخدوم من هنا. لو فشل التحميل نخفي الميزة ونكمّل.
+  async function loadAssign(){
+    try{
+      const r=await SY.staffAdmin({action:'list'}); if(!r.ok) throw new Error('nofn');
+      S.svs=(r.users||[]).filter(u=>u.role==='servant').sort((a,b)=>String(a.name||a.email).localeCompare(String(b.name||b.email),'ar'));
+      const as=await all('/rest/v1/staff_profile_assignments?select=staff_uid,profile_id&order=staff_uid.asc,profile_id.asc');
+      S.asg=new Map(); for(const a of as){ if(!S.asg.has(a.profile_id)) S.asg.set(a.profile_id,new Set()); S.asg.get(a.profile_id).add(a.staff_uid); }
+      S.asgOk=true;
+    }catch(e){ S.svs=[]; S.asg=new Map(); S.asgOk=false; }
+  }
+  const svName=(uid)=>{ const u=S.svs.find(x=>x.id===uid); return u?(u.name||u.email):'خادم غير معروف'; };
+  function svBox(m){
+    if(!S.asgOk||m.deleted_at) return '';
+    const cur=[...(S.asg.get(m.id)||[])], names=cur.map(svName), open=S.asel===m.id;
+    const lbl=names.length?esc(names.join('، ')):'بلا خادم';
+    return `<div style="margin-top:8px"><button class="btn sec" style="${SB};${names.length?'':'color:#b45309'}" data-a="svedit" data-id="${m.id}" aria-expanded="${open}">🧑‍🏫 الخادم: ${lbl} ✏️</button></div>
+      ${open?`<div class="card2" style="margin-top:8px"><b>اختر الخدام</b>${S.svs.length?`<div style="max-height:40vh;overflow:auto;margin-top:6px">${S.svs.map(u=>`<label class="chk"><input type="checkbox" data-sv="${u.id}"${S.acur.has(u.id)?' checked':''}> ${esc(u.name||u.email)}</label>`).join('')}</div>`:'<p class="hint">مفيش خدام. أضف حساب خادم من «حسابات الطاقم».</p>'}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" style="${SB}" data-a="svsave" data-id="${m.id}"${S.abusy?' disabled':''}>حفظ</button><button class="btn sec" style="${SB}" data-a="svcancel">إلغاء</button></div></div>`:''}`;
+  }
+  async function svSave(id){
+    const orig=new Set(S.asg.get(id)||[]), add=[...S.acur].filter(x=>!orig.has(x)), del=[...orig].filter(x=>!S.acur.has(x));
+    if(!add.length&&!del.length){ S.asel=null; paintList(); return; }
+    const m=byId(id); if(del.length&&!confirm(`هتشيل ${del.length} خادم من «${m?m.name:''}». متأكد؟`)) return;
+    S.abusy=true; paintList();
+    try{
+      if(add.length) await api('/rest/v1/staff_profile_assignments?on_conflict=staff_uid,profile_id',{method:'POST',prefer:'resolution=ignore-duplicates,return=minimal',body:add.map(uid=>({staff_uid:uid,profile_id:id}))});
+      if(del.length) await api(`/rest/v1/staff_profile_assignments?profile_id=eq.${encodeURIComponent(id)}&staff_uid=in.(${del.join(',')})`,{method:'DELETE',prefer:'return=minimal'});
+      S.asg.set(id,new Set(S.acur)); S.asel=null; S.abusy=false; paintList(); say('تم حفظ الإسناد ✅');
+    }catch(e){ S.abusy=false; paintList(); say(errMsg(e),true); }
   }
   async function loadStatsExtra(){
     try{ S.sess=await api('/rest/v1/sessions?select=profile_id,started_at&order=started_at.desc&limit=15'); }catch(e){ S.sess=[]; }
@@ -130,7 +161,7 @@ export async function mount(el,{role}={}){
       const btns=del?`${left>0?`<button class="btn sec" style="${SB}" data-a="restore" data-id="${m.id}">♻️ استرجاع</button>`:''}<button class="x" data-a="purge" data-id="${m.id}">حذف نهائي</button>`
         :`${m.archived_at?`<button class="btn sec" style="${SB}" data-a="unarch" data-id="${m.id}">إلغاء الأرشفة</button>`:`<button class="btn sec" style="${SB}" data-a="edit" data-id="${m.id}">✏️ تعديل</button>`}<button class="btn sec" style="${SB}" data-a="newcode" data-id="${m.id}">🔄 كود جديد</button><button class="x" data-a="del" data-id="${m.id}">🗑 حذف</button>`;
       return `<div class="card2"><div class="row" style="border:0;padding:0"><b>${esc(m.name)}</b><span class="badge ${del?'off':'on'}">${del?'محذوف':m.archived_at?'مؤرشف':'نشط'}</span></div>
-        <div class="k">${info}</div>${st}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btns}</div>${S.sel===m.id&&!del?editor(m):''}</div>`;
+        <div class="k">${info}</div>${svBox(m)}${st}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btns}</div>${S.sel===m.id&&!del?editor(m):''}</div>`;
     }).join(''):'<div class="hint">لا توجد نتائج.</div>';
   }
   function dist(title,map,total){
@@ -291,6 +322,9 @@ export async function mount(el,{role}={}){
     if(a==='tab'){ S.tab=t.dataset.t; say(''); paintBody(); if(S.tab==='s') loadStatsExtra().then(()=>S.tab==='s'&&paintBody()); if(S.tab==='a') loadAudit(); if(S.tab==='r') loadReq(); }
     else if(a==='f'){ S.f=t.dataset.f; S.sel=null; paintBody(); }
     else if(a==='reload') load();
+    else if(a==='svedit'){ if(S.asel===id){ S.asel=null; } else { S.asel=id; S.acur=new Set(S.asg.get(id)||[]); } paintList(); }
+    else if(a==='svcancel'){ S.asel=null; paintList(); }
+    else if(a==='svsave') svSave(id);
     else if(a==='edit'){ S.sel=id; paintList(); }
     else if(a==='cancel'){ S.sel=null; paintList(); }
     else if(a==='save') save(id);
@@ -300,7 +334,7 @@ export async function mount(el,{role}={}){
     else act(a,id);
   });
   root.addEventListener('input',(e)=>{ if(e.target.id==='q'){ S.q=e.target.value; paintList(); } });
-  root.addEventListener('change',(e)=>{ if(e.target.id==='rq_sel'){ const i=$('#rq_em'); if(i&&e.target.value) i.value=e.target.value; return; } if(e.target.id==='rsnd'){ try{ localStorage.setItem('reqSound',e.target.checked?'1':'0'); }catch(x){} } if(e.target.id==='atbl'){ S.audit.tbl=e.target.value; S.audit.page=0; loadAudit(); } });
+  root.addEventListener('change',(e)=>{ const sv=e.target.dataset&&e.target.dataset.sv; if(sv){ e.target.checked?S.acur.add(sv):S.acur.delete(sv); return; } if(e.target.id==='rq_sel'){ const i=$('#rq_em'); if(i&&e.target.value) i.value=e.target.value; return; } if(e.target.id==='rsnd'){ try{ localStorage.setItem('reqSound',e.target.checked?'1':'0'); }catch(x){} } if(e.target.id==='atbl'){ S.audit.tbl=e.target.value; S.audit.page=0; loadAudit(); } });
 
   addEventListener('lawha:ownertab',function h(){ if(!root.isConnected){ removeEventListener('lawha:ownertab',h); return; } S.tab='r'; paintTabs(); paintBody(); loadReq(); });
   paint(); await load(); if(S.tab==='r') loadReq(); else loadReqCount();
