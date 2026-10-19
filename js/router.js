@@ -3,6 +3,8 @@
 import {getRole,activeProfile} from './auth.js';
 import * as db from './db.js';
 import {showGate} from './register.js';
+import * as ACC from './accounts.js';
+import {showPicker} from './picker.js';
 import {collect,notifyLocal} from './reminders.js';
 import * as SY from './sync.js';
 import {showLogin,showForgot} from './login.js';
@@ -51,9 +53,16 @@ function renderLogin(hasProfile){
     onCancel:hasProfile?()=>{ setNavVisible(true); route(); }:null
   });
 }
+// (v9.40) مخدوم بلا حساب نشط: لو على الجهاز حسابات يظهر اختيار المخدوم (+ الرقم السري)، وإلا التسجيل الأول
+function renderEntry(){ if(ACC.count()>0) renderPicker(); else renderLogin(false); }
+function renderPicker(){
+  const main=$('main'); main.onclick=main.onchange=main.oninput=null;
+  setNavVisible(false); showVotd(false); resetWelcome(); setSection('اختيار المخدوم');
+  showPicker(main,{onAdd:()=>openGate('n'),onStaff:()=>renderLogin(true)});
+}
 function openGate(initial){
   showVotd(false); resetWelcome(); setSection('حساب جديد');
-  showGate($('main'),()=>{ buildNav(); const v=visible(); history.replaceState(null,'','#/'+(v[0]?v[0].id:'')); route(); },{initial,onBack:()=>renderLogin(false)});
+  showGate($('main'),()=>{ history.replaceState(null,'','#/'); location.reload(); },{initial,onBack:renderEntry}); // إعادة تحميل: حالة الذاكرة تبدأ نظيفة للحساب الجديد
 }
 async function forcePw(){
   const main=$('main'); main.onclick=main.onchange=main.oninput=null;
@@ -63,7 +72,7 @@ async function forcePw(){
 }
 async function route(){
   refreshReminders();
-  if(role==='student' && !(await activeProfile())){ renderLogin(false); return; }
+  if(role==='student' && !(await activeProfile())){ renderEntry(); return; }
   if(role!=='student'){ const st=await db.get('staff'); if(st&&st.mustChange){ forcePw(); return; } }   // كلمة سر مؤقتة ⇒ تغيير إجباري
   setNavVisible(true); showVotd(true);
   { const src=role==='student'?await activeProfile():await db.get('staff'); const nm=src&&src.name?String(src.name).trim().split(/\s+/)[0]:''; maybeWelcome(role,nm); }
@@ -88,11 +97,12 @@ function watch(){
 }
 async function applyRole(){ role=await getRole(); paintRoleBtn(); watch(); buildNav(); history.replaceState(null,'','#/'+land()); route(); }
 export async function start(){
+  await ACC.init(); // (v9.40) الهجرة + تحديد الحساب النشط قبل أي قراءة شخصية
   role=await getRole(); mods=await loadRegistry(); db_cleanup();
   const btn=$('#roleBtn'); paintRoleBtn();
   btn.onclick=async()=>{
     if(role!=='student'){ await SY.staffLogout(); return; }  // staffLogout يطلق lawha:role فيُعاد بناء الواجهة
-    renderLogin(!!(await activeProfile()));
+    renderLogin(ACC.count()>0);
   };
   addEventListener('lawha:role',applyRole); // بعد دخول/خروج أو سحب الدور من الحساب
   addEventListener('lawha:unread',(e)=>setUnread(e.detail));
