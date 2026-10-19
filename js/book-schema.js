@@ -34,8 +34,10 @@ export function cleanChapter(c,opt={}){
   });
   const m=c.meditation||{};
   const med={verseText:str(m.verseText),verseRef:str(m.verseRef),meditation:str(m.meditation),comment:str(m.comment),message:str(m.message)};
-  const noMed=lib&&Object.values(med).every(v=>!v);   // في سفر المكتبة: التأمل اختياري كله أو لا شيء
-  if(!noMed&&Object.values(med).some(v=>!v)) errs.push('التأمل (meditation) ينقصه verseText أو verseRef أو meditation أو comment أو message');
+  const needMed=!!opt.needMed;   // (v9.38) عند رفع ملف الأسئلة: التأمل (الآية + التأمل + التعليق + الرسالة) مطلوب
+  const noMed=lib&&!needMed&&Object.values(med).every(v=>!v);   // عند التحميل في سفر المكتبة: التأمل اختياري كله أو لا شيء
+  if(needMed&&Object.values(med).every(v=>!v)) errs.push('التأمل (meditation) مفقود: لازم الآية (verseText و verseRef) والتأمل والتعليق والرسالة');
+  else if(!noMed&&Object.values(med).some(v=>!v)) errs.push('التأمل (meditation) ينقصه verseText أو verseRef أو meditation أو comment أو message');
   let qs=[];
   if(!Array.isArray(c.questions)||!c.questions.length) errs.push('لا توجد أسئلة (questions)');
   else qs=c.questions.map((q,i)=>cleanQ(q,i,errs)); // أي سؤال معيب يُسقط الإصحاح كله (لا يُعرض امتحان ناقص)
@@ -54,7 +56,7 @@ export function normalizeFile(raw,opt={}){
   return out;
 }
 
-// (v9.26) ملف أسئلة فقط: {book?, chapterNum, questions, meditation?} أو {chapters:[...]} أو مصفوفة إصحاحات.
+// (v9.26) ملف أسئلة فقط: {book?, chapterNum, questions, meditation} — (v9.38) التأمل (الآية + التأمل + التعليق + الرسالة) مطلوب عند الرفع أو {chapters:[...]} أو مصفوفة إصحاحات.
 // أي نص إصحاح (chapter) داخل الملف يُتجاهل: النص يُسحب من المكتبة. ignoredText = عدد الإصحاحات اللي نصها اتجاهل.
 export function normalizeQuestions(raw){
   const out={book:'',chapters:[],problems:[],ignoredText:0};
@@ -64,7 +66,7 @@ export function normalizeQuestions(raw){
   if(!list){ out.problems.push('لا توجد إصحاحات (chapters) ولا إصحاح مفرد (chapterNum)'); return out; }
   list.forEach((c,i)=>{
     if(c&&typeof c==='object'&&Array.isArray(c.chapter)&&c.chapter.length) out.ignoredText++;
-    const {chapter,errs}=cleanChapter(c&&typeof c==='object'?{...c,chapter:null}:c,{lib:true});
+    const {chapter,errs}=cleanChapter(c&&typeof c==='object'?{...c,chapter:null}:c,{lib:true,needMed:true});
     if(errs.length) out.problems.push(`إصحاح ${c&&c.chapterNum!=null?c.chapterNum:'#'+(i+1)}: `+errs.join('، ')); else out.chapters.push(chapter); });
   return out;
 }
