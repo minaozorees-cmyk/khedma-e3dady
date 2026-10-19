@@ -7,13 +7,14 @@ import * as SY from './sync.js';
 import * as LIB from './library.js';
 const FILE_RE=/^[\w\-.\u0600-\u06FF]+\.json$/;
 const clampMin=(rm)=>{ rm=rm==null||rm===''?NaN:Number(rm); return Number.isFinite(rm)&&rm>=0?Math.min(rm,60):3; }; // دقائق القراءة قبل الامتحان: افتراضي ٣، و٠ = بلا انتظار
+const clampQ=(q)=>{ q=Number(q); return Number.isFinite(q)&&q>0?Math.min(Math.floor(q),200):0; }; // (v9.38) عدد أسئلة الامتحان العشوائية من البنك: ٠ = كل الأسئلة
 // يبني قائمة الأسفار من إدخالات {id:{title,rm,chapters}} (chapters بالصيغة الخام: chapterNum/chapter/meditation/questions) ويعيد فحصها كأي ملف
 function build(entries,label){
   const books=[], problems=[];
   for(const id of Object.keys(entries).sort()){
     const e=entries[id]||{}, lib=LIB.ID_RE.test(String(e.lib||''))?String(e.lib):'', n=normalizeFile({book:e.title,chapters:e.chapters},{lib:!!lib});
     n.problems.forEach(msg=>problems.push({file:label+id,msg}));
-    if(n.chapters.length) books.push({id,title:String(e.title||n.book||id),readMinutes:clampMin(e.rm),lib,chapters:n.chapters.sort((a,c)=>a.chapterNum-c.chapterNum)});
+    if(n.chapters.length) books.push({id,title:String(e.title||n.book||id),readMinutes:clampMin(e.rm),qn:clampQ(e.qn),lib,chapters:n.chapters.sort((a,c)=>a.chapterNum-c.chapterNum)});
   }
   return {books,problems};
 }
@@ -26,7 +27,7 @@ async function fromServer(){
     const c=old[id];
     if(c&&c.u===row.updated_at){ fresh[id]=c; continue; }
     const d=await SY.booksGet(id);
-    if(d&&Array.isArray(d.chapters)) fresh[id]={u:row.updated_at,title:row.title,rm:row.read_minutes,chapters:d.chapters,lib:d.lib||''};
+    if(d&&Array.isArray(d.chapters)) fresh[id]={u:row.updated_at,title:row.title,rm:row.read_minutes,chapters:d.chapters,lib:d.lib||'',qn:d.qn||0};
     else if(c) fresh[id]=c; // فشل التحميل: نبقي النسخة القديمة
   }
   if(!list.length) await db.del('booksCache'); else await db.set('booksCache',fresh);
@@ -55,8 +56,8 @@ async function fromLocal(){
       const n=normalizeFile(raw); n.problems.forEach(msg=>problems.push({file:f,msg}));
       if(!title) title=n.book; n.chapters.forEach(c=>byNum.set(c.chapterNum,c));
     }
-    const readMinutes=clampMin(b.readMinutes);
-    if(byNum.size) books.push({id,title:title||id,readMinutes,chapters:[...byNum.values()].sort((a,c)=>a.chapterNum-c.chapterNum)});
+    const readMinutes=clampMin(b.readMinutes), qn=clampQ(b.qCount);   // qCount اختياري في books/index.json
+    if(byNum.size) books.push({id,title:title||id,readMinutes,qn,chapters:[...byNum.values()].sort((a,c)=>a.chapterNum-c.chapterNum)});
   }
   return {books,problems};
 }
