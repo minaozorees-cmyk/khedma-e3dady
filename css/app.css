@@ -263,3 +263,6 @@ nav.noact .gl-glider{opacity:0}
 .zbar .zl{min-width:44px;text-align:center;font-size:.78rem;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .zb{min-width:44px;height:36px;padding:0 10px;border-radius:10px;background:var(--bg-2);border:1px solid var(--line);color:var(--ink);font-family:'Cairo',sans-serif;font-size:.95rem;font-weight:800;cursor:pointer}
 .zb:hover{border-color:var(--gold)}.zb:disabled{opacity:.4;cursor:default}
+
+/* v9.40: اختيار المخدوم */
+.acct{display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:8px;text-align:right}
