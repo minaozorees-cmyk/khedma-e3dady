@@ -266,3 +266,9 @@ nav.noact .gl-glider{opacity:0}
 
 /* v9.40: اختيار المخدوم */
 .acct{display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:8px;text-align:right}
+
+/* v9.40: اسم المستخدم في الهيدر + زر تبديل المخدوم جنب "دخول" */
+header .who{margin:4px 0 0;font-family:'Cairo',sans-serif;font-size:13px;font-weight:700;color:var(--gold-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+[data-theme=light] header .who{color:var(--gold-dim)}
+.topbar .switchbtn{border-color:rgba(232,196,104,.5);background:rgba(232,196,104,.14)}
+.topbar .switchbtn:hover{background:rgba(232,196,104,.28)}
