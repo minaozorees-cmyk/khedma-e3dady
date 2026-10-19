@@ -1,5 +1,5 @@
 // غيّر VERSION مع كل تحديث ليصل للأجهزة
-const VERSION='v9.43', CACHE='lawha-'+VERSION;
+const VERSION='v9.44', CACHE='lawha-'+VERSION;
 // (v9.26) كاش مستقل لنصوص المكتبة (bible/*.json): بيفضل زي ما هو عند تحديث النسخة، فمايتنزّلش الأسفار تاني من الأول
 const BIBLE='lawha-bible-v1';
 const SHELL=['./','index.html','manifest.json','css/app.css','css/fonts.css',
