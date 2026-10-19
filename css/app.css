@@ -294,3 +294,9 @@ body.has-rail .sidebar.open{width:min(320px,88vw);padding:18px 14px;padding-top:
   z-index:1000;box-shadow:-10px 0 34px rgba(0,0,0,.45);overflow-y:auto}
 body.has-rail .sidebar.open nav#nav a .nb{display:none}
 @media print{body.has-rail{padding-right:0}}
+
+/* ===== v9.412 — درج جزئي بعرض ديناميكي (--dw يحسبه ui.js من أطول عنوان) ===== */
+body.has-rail .sidebar.open{width:var(--dw,min(320px,88vw));max-width:88vw}
+nav#nav a .t{white-space:nowrap}
+.sidebar.measure{position:fixed!important;left:-9999px!important;right:auto!important;top:0;width:max-content!important;max-width:none!important;
+  transform:none!important;visibility:hidden!important;pointer-events:none;transition:none!important;overflow:visible!important;height:auto!important}
