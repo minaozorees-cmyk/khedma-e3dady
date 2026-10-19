@@ -1,6 +1,7 @@
 // هوية المخدوم المحلية + دور المستخدم. (v6) دخول الخادم/المالك الحقيقي في sync.js (staffLogin) والدور يُشتق من جلسة موثّقة، لا من اختيار يدوي.
 // ⚠️ الدور هنا لتحديد الواجهة فقط. الحماية الفعلية = RLS في Supabase (my_role() من app_metadata.role في الـJWT).
 import * as db from './db.js';
+import * as ACC from './accounts.js';
 export const ROLE_LABEL={student:'مخدوم',servant:'خادم',priest:'الكاهن',owner:'مالك'};
 export const STAFF=['servant','priest','owner'];
 // الدور = دور جلسة الخادم/المالك المحفوظة (kv.staff، تكتبها sync.staffLogin بعد تحقق السيرفر)، وإلا مخدوم.
@@ -36,42 +37,44 @@ export async function register(d){
     phone:normPhoneEG(d.phone), grade:d.grade, gender:d.gender, email:(d.email||'').trim(),
     guardianName:(d.guardianName||'').trim().replace(/\s+/g,' '), guardianPhone:(d.guardianPhone||'').trim()?normPhoneEG(d.guardianPhone):'', // v9.2: ولي الأمر اختياري
     createdAt:Date.now(), synced:false };
-  await db.set('profile',p); await db.set('loggedOut',false);
-  // تخزّن المهمة الـid فقط: مصدر الحقيقة الوحيد هو kv.profile وقت الرفع، فلا تبقى نسخة من بيانات الاتصال في الطابور بعد المسح
+  await ACC.add(p); ACC.setActive(p.id); // (v9.40) يرمي 'full' لو على الجهاز ٣ حسابات
+  // تخزّن المهمة الـid فقط: مصدر الحقيقة الوحيد هو ملف الحساب المحلي وقت الرفع، فلا تبقى نسخة من بيانات الاتصال في الطابور بعد المسح
   const createId=await db.queue({type:'profile.create',profileId:p.id}); // تُرفع في المرحلة ٥
   await db.queue({type:'profile.scrub',profileId:p.id,after:createId}); // لا تُنفَّذ إلا بعد تأكيد السيرفر لـ createId
   return p;
 }
+// (v9.40) الحساب النشط يحدده accounts.js (sessionStorage)؛ db.get('profile') يقرأ ملف النشط تلقائياً
 export async function activeProfile(){
+  const id=ACC.activeId(); if(!id) return null;
   const p=await db.get('profile');
-  return p && !(await db.get('loggedOut')) ? p : null;
+  return p&&p.id===id?p:null;
 }
-export const logout=()=>db.set('loggedOut',true);
+export const logout=()=>ACC.clearActive(); // تبديل المخدوم: لا يمسح شيئاً
 
 // sync.js يربط هذه الدالة بالسيرفر (Edge Function): async (name,code)=>profile | null (لا يوجد تطابق) | {error:'locked'|'offline'|'unavailable'}
 let remote=null; export const setRemoteRestore=(fn)=>{ remote=fn; };
 export async function restore(name,code){
-  const c=normCode(code), n=normName(name), p=await db.get('profile');
-  if(p){
-    if(p.code===c && normName(p.name)===n){ await db.set('loggedOut',false); return {ok:true,profile:p}; }
-    return {ok:false,reason:'mismatch'};
+  const c=normCode(code), n=normName(name);
+  for(const p of await ACC.allProfiles()){ // الحساب موجود على الجهاز أصلاً: نفتحه (الكود هو المفتاح الرئيسي)
+    if(p.code===c && normName(p.name)===n){ ACC.setActive(p.id); return {ok:true,profile:p}; }
   }
+  if(ACC.count()>=ACC.MAX) return {ok:false,reason:'full'};
   if(remote){
     if(!isCode(c)||n.length<2) return {ok:false,reason:'mismatch'}; // لا نستهلك محاولة على السيرفر لمدخل غير صالح الشكل
     const r=await remote(name,c);
     if(r&&r.error) return {ok:false,reason:r.error};
-    if(r){ await db.set('profile',r); await db.set('loggedOut',false); return {ok:true,profile:r}; }
+    if(r){ if(!ACC.has(r.id)) await ACC.add(r); ACC.setActive(r.id); return {ok:true,profile:r}; }
     return {ok:false,reason:'mismatch'};
   }
-  return {ok:false,reason:'nolocal'};
+  return {ok:false,reason:ACC.count()?'mismatch':'nolocal'};
 }
 // ⚠️ لا تُستدعى إلا بعد تأكيد السيرفر لاستلام مهمة profile.create رقم createId (المرحلة ٥).
 // تمسح بيانات الاتصال محلياً عبر مهمة المسح المرتبطة بها فقط؛ لو لم توجد المهمة لا تمسح شيئاً.
-export async function scrubAfterAck(createId){
-  const p=await db.get('profile'); if(!p) return false;
+export async function scrubAfterAck(createId,profileId){
+  const p=await ACC.profileOf(profileId); if(!p) return false; // (v9.40) حسب صاحب المهمة لا الحساب النشط
   const jobs=(await db.pending()).filter(j=>j.type==='profile.scrub'&&j.after===createId&&j.profileId===p.id);
   if(!jobs.length) return false;
-  Object.assign(p,{synced:true,phone:'',email:'',guardianName:'',guardianPhone:''}); await db.set('profile',p);
+  Object.assign(p,{synced:true,phone:'',email:'',guardianName:'',guardianPhone:''}); await ACC.saveProfile(p);
   for(const j of jobs) await db.unqueue(j.id);
   return true;
 }
