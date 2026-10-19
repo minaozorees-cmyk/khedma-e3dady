@@ -45,14 +45,14 @@ function buildNav(){
   return v;
 }
 // شاشة الدخول الموحّدة. hasProfile=true: الجهاز عليه ملف مخدوم، فنخفي أزرار "حساب جديد/عندي كود".
-function renderLogin(hasProfile){
+function renderLogin(hasProfile,back){   // (v9.44) back: رجوع مخصص (الشاشة الرئيسية ← اختيار المخدوم)
   const main=$('main'); main.onclick=main.onchange=main.oninput=null;
   setNavVisible(false); hideWho(); showVotd(false); resetWelcome(); setSection('دخول');
   showLogin(main,{
     students:!hasProfile,
-    onForgot:()=>{ setSection('نسيت كلمة السر'); showForgot(main,{onBack:()=>renderLogin(hasProfile)}); },
+    onForgot:()=>{ setSection('نسيت كلمة السر'); showForgot(main,{onBack:()=>renderLogin(hasProfile,back)}); },
     onNew:()=>openGate('n'), onCode:()=>openGate('r'),
-    onCancel:hasProfile?()=>{ setNavVisible(true); route(); }:null
+    onCancel:back||(hasProfile?()=>{ setNavVisible(true); route(); }:null)
   });
 }
 // (v9.40) مخدوم بلا حساب نشط: لو على الجهاز حسابات يظهر اختيار المخدوم (+ الرقم السري)، وإلا التسجيل الأول
@@ -60,8 +60,10 @@ function renderEntry(){ if(ACC.count()>0) renderPicker(); else renderLogin(false
 function renderPicker(){
   const main=$('main'); main.onclick=main.onchange=main.oninput=null;
   setNavVisible(false); hideWho(); showVotd(false); resetWelcome(); setSection('اختيار المخدوم');
-  showPicker(main,{onAdd:()=>openGate('n'),onStaff:()=>renderLogin(true)});
+  showPicker(main,{onHome:renderHome});
 }
+// (v9.44) «الشاشة الرئيسية» = نفس شاشة الدخول الافتتاحية (دخول + حساب جديد + عندي كود + نسيت كلمة السر) وزر رجوع لاختيار المخدوم
+function renderHome(){ renderLogin(false,renderPicker); }
 function openGate(initial){
   hideWho(); showVotd(false); resetWelcome(); setSection('حساب جديد');
   showGate($('main'),()=>{ history.replaceState(null,'','#/'); location.reload(); },{initial,onBack:renderEntry}); // إعادة تحميل: حالة الذاكرة تبدأ نظيفة للحساب الجديد
