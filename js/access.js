@@ -27,7 +27,7 @@ export async function refresh(){
   if(Array.isArray(hs)){ hashes=buildH(hs); hashesAt=Date.now(); got=true; try{ await db.set('accessHashes',{m:hashes,at:hashesAt}); }catch(e){} }
   return got;
 }
-if(typeof addEventListener==='function') addEventListener('online',()=>{ refresh().catch(()=>{}); });
+if(typeof addEventListener==='function') addEventListener('online',()=>{ refresh().catch(()=>{}); }); // النت رجع: حدّث
 export const now=()=>Date.now()+off;
 // null = مفتوح، وإلا {why:'before'|'after', at:وقت الفتح أو القفل بالمللي ثانية}
 export function lock(bid,num){
@@ -39,6 +39,12 @@ export function lock(bid,num){
   return null;
 }
 export const isLocked=(bid,num)=>!!lock(bid,num);
+// (v9.39) أقرب لحظة قادمة (فتح أو قفل) من المواعيد المخزّنة، بالمللي ثانية من الآن؛ null لو مفيش. تُستخدم لتحديث قائمة الأسفار تلقائياً عند حلول الميعاد.
+export function nextChangeIn(){
+  const t=now(); let best=null;
+  for(const k in map){ const a=map[k]; for(const x of [a.o,a.c]) if(x!=null&&x>t&&(best==null||x<best)) best=x; }
+  return best==null?null:best-t;
+}
 export async function markUnlocked(bid,num){ unl[K(bid,num)]=Date.now(); try{ await db.set('accessUnlocked',unl); }catch(e){} }
 
 // ===== فحص الكود محلياً =====
@@ -47,14 +53,15 @@ export async function sha256Hex(s){
   const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
   return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
 }
-export const hashOf=(salt,bid,num,code)=>sha256Hex(`${salt}|${bid}|${num}|${normCode(code)}`);
+export const hashOf=(salt,bid,num,code)=>sha256Hex(`${salt}|${bid}|${num}|${normCode(code)}`);   // نفس صيغة الـtrigger في 10-code-hashes.sql
 const recent=async()=>{ let t=[]; try{ t=await db.get('code_tries_local'); }catch(e){} return (Array.isArray(t)?t:[]).filter(x=>Number.isFinite(x)&&Date.now()-x<WINDOW&&x<=Date.now()+60000); };
-// يرجع: 'ok' | 'bad' | 'locked' (حدّ المحاولات) | 'nodata' | 'unavailable' (المتصفح ما بيدعمش SHA-256)
+// يرجع: 'ok' | 'bad' | 'locked' (حدّ المحاولات) | 'nodata' (البصمات ما وصلتش الجهاز أبداً) | 'unavailable' (المتصفح ما بيدعمش SHA-256)
 export async function verify(bid,num,code){
   const tries=await recent();
   if(tries.length>=MAX_TRIES) return 'locked';
   if(!normCode(code)) return 'bad';
   if(!(typeof crypto!=='undefined'&&crypto.subtle)) return 'unavailable';
+  // النت متاح؟ جيب أحدث بصمات قبل الفحص (حدّ ٣ ثواني)، عشان كود اتولّد لسه حالاً
   await Promise.race([refresh().catch(()=>{}),new Promise(r=>setTimeout(r,3000))]);
   const h=hashes[K(bid,num)];
   if(!h&&!hashesAt) return 'nodata';
