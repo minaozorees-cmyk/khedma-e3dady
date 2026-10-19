@@ -39,7 +39,8 @@ function markActive(){   // v9.19: المؤشر المنزلق (glider) يتحر
 
 function buildNav(){
   const v=visible();
-  $('nav').innerHTML=v.map(m=>`<a href="#/${m.id}" data-id="${m.id}"><span class="i">${m.icon}</span>${m.title}${(()=>{ const n=m.id==='members'?pending:(m.id==='messages'&&role==='student'?unread:0); return n>0?` (${ar(n)})`:''; })()}</a>`).join('')+'<div class="gl-glider" aria-hidden="true"></div>';
+  $('nav').innerHTML=v.map(m=>{ const c=m.id==='members'?pending:(m.id==='messages'&&role==='student'?unread:0);   // v9.41: النص في .t (يختفي في شريط الأيقونات) والعدّاد كشارة .nb
+    return `<a href="#/${m.id}" data-id="${m.id}" title="${m.title}" aria-label="${m.title}"><span class="i">${m.icon}</span><span class="t">${m.title}${c>0?` (${ar(c)})`:''}</span>${c>0?`<span class="nb">${ar(c)}</span>`:''}</a>`; }).join('')+'<div class="gl-glider" aria-hidden="true"></div>';
   markActive();
   return v;
 }
