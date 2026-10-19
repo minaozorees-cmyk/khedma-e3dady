@@ -273,27 +273,29 @@ header .who{margin:4px 0 0;font-family:'Cairo',sans-serif;font-size:13px;font-we
 .topbar .switchbtn{border-color:rgba(232,196,104,.5);background:rgba(232,196,104,.14)}
 .topbar .switchbtn:hover{background:rgba(232,196,104,.28)}
 
-/* ===== v9.41 — شريط أيقونات جانبي دائم (يمين، RTL) لكل الأدوار؛ يتوسع عند الضغط ===== */
+/* ===== v9.413 — القائمة مخفية افتراضياً؛ السحب من أقصى اليمين يُظهر شريط الأيقونات (فوق المحتوى بلا إزاحة)، والضغط خارجه يُخفيه ===== */
 :root{--rail:60px}
 .rail-btn,.nb{display:none}
-body.has-rail{padding-right:var(--rail)}
-body.has-rail #sidebarToggleBtn{display:none}
-body.has-rail .sidebar{transform:none;visibility:visible;width:var(--rail);padding:8px 6px;padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:calc(16px + env(safe-area-inset-bottom));
-  box-shadow:none;z-index:50;overflow-x:hidden;scrollbar-width:none;transition:width .25s ease}
-body.has-rail .sidebar::-webkit-scrollbar{display:none}
-body.has-rail .sidebar:not(.open) .sidebar-header{display:none}
-body.has-rail .sidebar:not(.open) .rail-btn{display:flex;align-items:center;justify-content:center;flex:none;width:100%;height:44px;margin-bottom:8px;border-radius:12px;
+#edgeZone{display:none;position:fixed;top:0;right:0;bottom:0;width:16px;z-index:40;touch-action:pan-y}
+body.has-rail:not(.rail-on) #edgeZone{display:block}
+body.has-rail .sidebar:not(.rail):not(.open){width:var(--rail)}
+body.has-rail .sidebar.rail:not(.open){transform:none;visibility:visible;width:var(--rail);padding:8px 6px;padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:calc(16px + env(safe-area-inset-bottom));
+  box-shadow:-6px 0 22px rgba(0,0,0,.4);z-index:1000;overflow-x:hidden;scrollbar-width:none;transition:transform .3s cubic-bezier(.4,0,.2,1),visibility 0s,width .25s ease}
+body.has-rail .sidebar.rail::-webkit-scrollbar{display:none}
+.sidebar-overlay.clear{background:transparent}
+body.has-rail .sidebar.rail:not(.open) .sidebar-header{display:none}
+body.has-rail .sidebar.rail:not(.open) .rail-btn{display:flex;align-items:center;justify-content:center;flex:none;width:100%;height:44px;margin-bottom:8px;border-radius:12px;
   background:var(--bg-3);border:1px solid var(--line);color:var(--ink);font-size:20px;cursor:pointer}
-body.has-rail .sidebar:not(.open) nav#nav{border-radius:14px}
-body.has-rail .sidebar:not(.open) nav#nav a{padding:0;justify-content:center;gap:0}
-body.has-rail .sidebar:not(.open) nav#nav a .t{display:none}
-body.has-rail .sidebar:not(.open) nav#nav a .i{width:auto;font-size:1.35rem}
-body.has-rail .sidebar:not(.open) nav#nav a .nb{display:block;position:absolute;top:5px;left:3px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;
+body.has-rail .sidebar.rail:not(.open) nav#nav{border-radius:14px}
+body.has-rail .sidebar.rail:not(.open) nav#nav a{padding:0;justify-content:center;gap:0}
+body.has-rail .sidebar.rail:not(.open) nav#nav a .t{display:none}
+body.has-rail .sidebar.rail:not(.open) nav#nav a .i{width:auto;font-size:1.35rem}
+body.has-rail .sidebar.rail:not(.open) nav#nav a .nb{display:block;position:absolute;top:5px;left:3px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;
   background:var(--orange,#e67e22);color:#000;font-size:10px;font-weight:800;line-height:17px;text-align:center}
-body.has-rail .sidebar.open{width:min(320px,88vw);padding:18px 14px;padding-top:calc(18px + env(safe-area-inset-top));padding-bottom:calc(28px + env(safe-area-inset-bottom));
+body.has-rail .sidebar.open{padding:18px 14px;padding-top:calc(18px + env(safe-area-inset-top));padding-bottom:calc(28px + env(safe-area-inset-bottom));
   z-index:1000;box-shadow:-10px 0 34px rgba(0,0,0,.45);overflow-y:auto}
 body.has-rail .sidebar.open nav#nav a .nb{display:none}
-@media print{body.has-rail{padding-right:0}}
+@media print{#edgeZone{display:none!important}}
 
 /* ===== v9.412 — درج جزئي بعرض ديناميكي (--dw يحسبه ui.js من أطول عنوان) ===== */
 body.has-rail .sidebar.open{width:var(--dw,min(320px,88vw));max-width:88vw}
