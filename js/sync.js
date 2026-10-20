@@ -301,6 +301,48 @@ export async function staffAdmin(payload){
     return {ok:false,reason:j.error||(r.status===404?'nofn':'server')};
   }catch(e){ return {ok:false,reason:'offline'}; }
 }
+// ===== (v9.45) الإشعارات الفعلية (Web Push): تسجيل اشتراك الجهاز + إشعار تجريبي. الإرسال الفعلي من Edge Function "push-send" =====
+const pushWhy=(f)=>f.code==='42501'?'not_owner':(f.status===404||f.code==='PGRST202'||f.code==='42883'||f.code==='42P01')?'nosql':'server';
+export async function pushSubscribe(profileId,sub){
+  if(!enabled()||offline()) return {ok:false,reason:'offline'};
+  try{ try{ await ensureClaim(); }catch(e){}
+    const j=sub&&sub.toJSON?sub.toJSON():(sub||{}), k=j.keys||{};
+    if(!j.endpoint||!k.p256dh||!k.auth) return {ok:false,reason:'subscribe'};
+    const r=await api('/rest/v1/rpc/push_subscribe',{method:'POST',body:{p_profile:profileId,p_endpoint:j.endpoint,p_p256dh:k.p256dh,p_auth:k.auth,p_ua:String(navigator.userAgent||'').slice(0,300)}});
+    return r.ok?{ok:true}:{ok:false,reason:pushWhy(await fail(r))};
+  }catch(e){ return {ok:false,reason:'offline'}; }
+}
+export async function pushUnsubscribe(profileId,endpoint){
+  if(!enabled()||offline()) return {ok:false,reason:'offline'};
+  try{ try{ await ensureClaim(); }catch(e){}
+    const r=await api('/rest/v1/rpc/push_unsubscribe',{method:'POST',body:{p_profile:profileId,p_endpoint:endpoint}});
+    return r.ok?{ok:true}:{ok:false,reason:pushWhy(await fail(r))};
+  }catch(e){ return {ok:false,reason:'offline'}; }
+}
+export async function pushStatus(profileId,endpoint){   // true/false، أو null لو تعذّر السؤال (نت/SQL ناقص)
+  if(!enabled()||offline()) return null;
+  try{ try{ await ensureClaim(); }catch(e){}
+    const r=await api('/rest/v1/rpc/push_status',{method:'POST',body:{p_profile:profileId,p_endpoint:endpoint}});
+    return r.ok?(await r.json())===true:null;
+  }catch(e){ return null; }
+}
+async function pushFn(jwt,payload){
+  try{
+    const r=await fetch(BASE+'/functions/v1/'+FN['push-send'],{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    let j={}; try{ j=await r.json(); }catch(e){}
+    if(r.ok) return j.ok?{ok:true,...j}:{ok:false,reason:j.removed?'gone':'failed',...j};
+    return {ok:false,reason:j.error||(r.status===404?'nofn':'server')};
+  }catch(e){ return {ok:false,reason:'offline'}; }
+}
+export async function pushTest(endpoint){   // المخدوم: إشعار تجريبي لجهازه فقط
+  if(!enabled()||offline()) return {ok:false,reason:'offline'};
+  try{ const a=await token(); return await pushFn(a.access,{action:'test',endpoint}); }catch(e){ return {ok:false,reason:'offline'}; }
+}
+export async function pushSend(payload){    // المالك: ping | test_profile | test_all
+  let s; try{ s=await staffAuth(false); }catch(e){ return {ok:false,reason:'offline'}; }
+  if(!s) return {ok:false,reason:'auth'};
+  return pushFn(s.access,payload);
+}
 // تغيير كلمة سر الحساب الحالي (GoTrue PUT /auth/v1/user) وإزالة علَم "كلمة مؤقتة".
 export async function changePassword(password){
   let s; try{ s=await staffAuth(false); }catch(e){ return {ok:false,reason:'offline'}; }
