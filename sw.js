@@ -1,9 +1,9 @@
 // غيّر VERSION مع كل تحديث ليصل للأجهزة
-const VERSION='v9.45', CACHE='lawha-'+VERSION;
+const VERSION='v9.46', CACHE='lawha-'+VERSION;
 // (v9.26) كاش مستقل لنصوص المكتبة (bible/*.json): بيفضل زي ما هو عند تحديث النسخة، فمايتنزّلش الأسفار تاني من الأول
 const BIBLE='lawha-bible-v1';
 const SHELL=['./','index.html','manifest.json','css/app.css','css/fonts.css',
- 'js/db.js','js/auth.js','js/router.js','js/register.js','js/accounts.js','js/picker.js','js/consts.js','js/dates.js','js/store.js','js/reminders.js','js/push.js','js/backup.js','js/books.js','js/book-schema.js','js/exam-engine.js','js/results.js','js/sync.js','js/config.js','js/exam-session.js','js/login.js','js/functions.js','js/sapi.js','js/inbox.js','js/update.js','js/req-watch.js','js/ui.js','js/votd.js','js/welcome.js','js/votd-data.js','js/access.js','js/library.js','js/tts.js','modules/me/index.js','modules/dashboard/index.js','modules/contest/index.js','modules/profile/index.js','modules/owner/assign.js','modules/owner/index.js','modules/owner/members.js','modules/account/index.js','modules/messages/index.js','modules/messages/staff.js','modules/followup/index.js','modules/attendance/index.js','modules/owner/staff.js','modules/owner/tools.js','modules/owner/access.js','modules/books/codes.js','modules/registry.json',
+ 'js/db.js','js/auth.js','js/router.js','js/register.js','js/accounts.js','js/picker.js','js/consts.js','js/dates.js','js/store.js','js/reminders.js','js/push.js','js/chapter-alerts.js','js/backup.js','js/books.js','js/book-schema.js','js/exam-engine.js','js/results.js','js/sync.js','js/config.js','js/exam-session.js','js/login.js','js/functions.js','js/sapi.js','js/inbox.js','js/update.js','js/req-watch.js','js/ui.js','js/votd.js','js/welcome.js','js/votd-data.js','js/access.js','js/library.js','js/tts.js','modules/me/index.js','modules/dashboard/index.js','modules/contest/index.js','modules/profile/index.js','modules/owner/assign.js','modules/owner/index.js','modules/owner/members.js','modules/account/index.js','modules/messages/index.js','modules/messages/staff.js','modules/followup/index.js','modules/attendance/index.js','modules/owner/staff.js','modules/owner/tools.js','modules/owner/access.js','modules/books/codes.js','modules/registry.json',
  'modules/books/index.js','modules/library/index.js','modules/agpeya/index.js','modules/agpeya-read/index.js','modules/liturgy/index.js','modules/confession/index.js',
  'books/index.json','pages/servant.html','pages/generator.html',
  'icons/icon-192.png','icons/icon-512.png','icons/maskable-512.png',
@@ -34,7 +34,12 @@ self.addEventListener('fetch',e=>{
 self.addEventListener('push',e=>{
   let d={}; try{ d=e.data?e.data.json():{}; }catch(_){ try{ d={body:e.data.text()}; }catch(__){} }
   const title=String(d.title||'خدمة إعدادي').slice(0,80), tag=d.tag?String(d.tag).slice(0,60):undefined;
-  e.waitUntil(self.registration.showNotification(title,{body:String(d.body||'').slice(0,200),tag,renotify:!!tag,lang:'ar',dir:'rtl',icon:'icons/icon-192.png',badge:'icons/icon-192.png',data:{url:d.url||'./'}}));
+  e.waitUntil((async()=>{
+    // (v9.46) «أول واحد يشتغل يلغي التاني»: لو في إشعار بنفس الـtag ظاهر (جه من التنبيه المحلي مثلاً) الجديد يستبدله بصمت، إلا لو طالب تنبيه (ren) زي التذكير التاني
+    let dup=false; if(tag){ try{ dup=(await self.registration.getNotifications({tag})).length>0; }catch(_){} }
+    const quiet=dup&&!d.ren;
+    await self.registration.showNotification(title,{body:String(d.body||'').slice(0,200),tag,renotify:!!tag&&!quiet,silent:quiet||undefined,lang:'ar',dir:'rtl',icon:'icons/icon-192.png',badge:'icons/icon-192.png',data:{url:d.url||'./'}});
+  })());
 });
 self.addEventListener('notificationclick',e=>{
   e.notification.close();
