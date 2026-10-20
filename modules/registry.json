@@ -225,6 +225,17 @@
       "enabled": true
     },
     {
+      "id": "push",
+      "title": "الإشعارات",
+      "icon": "🔔",
+      "roles": [
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/owner/push.js",
+      "enabled": true
+    },
+    {
       "id": "owner",
       "title": "إدارة الأسفار",
       "icon": "📤",
