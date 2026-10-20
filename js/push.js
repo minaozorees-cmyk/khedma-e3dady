@@ -1,11 +1,12 @@
 // (v9.45) الإشعارات الفعلية للمخدوم (Web Push) — واجهة الاشتراك فقط. السيرفر (Edge Function) هو اللي بيبعت، حتى لو التطبيق مقفول.
 // هنا: طلب الإذن + اشتراك الجهاز + تسجيله عند السيرفر + تزامنه. حالة التفعيل لكل حساب محفوظة محلياً (pushOn).
 // ⚠️ VAPID_PUBLIC مفتاح عام (آمن للنشر). المفتاح الخاص يتخزّن في Supabase Secrets فقط، ولا يوضع في أي ملف هنا.
-//    لو غيّرت زوج المفاتيح: بدّل المفتاح العام ده والسري في Supabase، والمخدومين لازم يعيدوا التفعيل.
+//    لو غيّرت زوج المفاتيح: بدّل المفتاح العام ده والسري في Supabase. المخدومين اللي مفعّلين بيتجدّد اشتراكهم تلقائياً عند أول فتح للتطبيق (sameKey/sync).
 import * as db from './db.js';
 import * as SY from './sync.js';
-export const VAPID_PUBLIC='BGdNxneaY_mHvJg8nCkkCF7R83zLcH1YOKiCGpEU7fV_KsLTmq7pdPH42pAwQz8FX6QJRgOUChXA2bMesUItGKk';
+export const VAPID_PUBLIC='BC5yqkVX_voOQ3DoubFkerOAQk7wSxTANS__xdNWVK754UyprEf4ocCNGyKE1gRcIgzdMgLIlTqa7gKT8XO2puM';
 const key=()=>{ const s=VAPID_PUBLIC, p='='.repeat((4-s.length%4)%4), r=atob((s+p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from(r,c=>c.charCodeAt(0)); };
+const sameKey=(sub)=>{ try{ const a=sub&&sub.options&&sub.options.applicationServerKey; if(!a) return true; const x=new Uint8Array(a), y=key(); return x.length===y.length&&x.every((v,i)=>v===y[i]); }catch(e){ return true; } };   // اشتراك بمفتاح VAPID قديم = لازم يتجدّد
 export const supported=()=>typeof window!=='undefined'&&'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
 export const configured=()=>SY.enabled()&&!!VAPID_PUBLIC;
 const reg=()=>navigator.serviceWorker.ready;
@@ -18,6 +19,7 @@ export async function state(profileId){
   if(Notification.permission==='denied') return {s:'denied'};
   const sub=await localSub(), on=!!(await db.getAt(profileId,'pushOn'));
   if(!sub) return {s:'idle'};
+  if(!sameKey(sub)) return {s:on?'partial':'idle',endpoint:sub.endpoint,stale:true};   // مفتاح قديم: «إعادة التفعيل» أو التجديد التلقائي
   const srv=await SY.pushStatus(profileId,sub.endpoint);
   if(srv===true) return {s:'on',endpoint:sub.endpoint};
   if(srv===false) return {s:on?'partial':'idle',endpoint:sub.endpoint};
@@ -28,7 +30,7 @@ export async function enable(profileId){
   if(!supported()||!configured()) return {ok:false,reason:'unsupported'};
   const perm=Notification.permission==='granted'?'granted':await Notification.requestPermission();
   if(perm!=='granted') return {ok:false,reason:perm==='denied'?'denied':'dismissed'};
-  let sub; try{ const r=await reg(); sub=(await r.pushManager.getSubscription())||(await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key()})); }
+  let sub; try{ const r=await reg(); sub=await r.pushManager.getSubscription(); if(sub&&!sameKey(sub)){ try{ await sub.unsubscribe(); }catch(e){} sub=null; } sub=sub||(await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key()})); }
   catch(e){ return {ok:false,reason:'subscribe'}; }
   const x=await SY.pushSubscribe(profileId,sub);
   if(!x.ok) return x;
@@ -50,8 +52,10 @@ export async function sync(profileId,force){
   try{
     if(!supported()||!configured()||Notification.permission!=='granted') return;
     if(!(await db.getAt(profileId,'pushOn'))) return;
-    const last=(await db.getAt(profileId,'pushSyncAt'))||0; if(!force&&Date.now()-last<864e5) return;
-    const r=await reg(); let sub=await r.pushManager.getSubscription();
+    const last=(await db.getAt(profileId,'pushSyncAt'))||0, r=await reg(); let sub=await r.pushManager.getSubscription();
+    const stale=!!sub&&!sameKey(sub);                                   // (v9.46) تدوير مفاتيح VAPID: نجدّد الاشتراك بدون تدخّل المخدوم
+    if(!force&&!stale&&Date.now()-last<864e5) return;
+    if(stale){ try{ await sub.unsubscribe(); }catch(e){} sub=null; }
     if(!sub) sub=await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key()});
     const x=await SY.pushSubscribe(profileId,sub);
     if(x.ok) await db.setAt(profileId,'pushSyncAt',Date.now());
