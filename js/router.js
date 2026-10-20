@@ -23,7 +23,8 @@ async function refreshReminders(){
   if(role!=='student'||!(await activeProfile())){ box.innerHTML=''; return; }
   const list=(await collect()).filter(r=>!dismissed.has(r.id));
   box.innerHTML=list.map(r=>`<div class="rm" data-go="${r.module}"><span>🔔 ${r.text}</span><button data-x="${r.id}" aria-label="إغلاق">✕</button></div>`).join('');
-  if(!notified&&list.length){ notified=true; notifyLocal(list); }
+  const sys=list.filter(r=>!r.ch);   // (v9.46) تذكير الإصحاح داخل التطبيق فقط؛ إشعار الجهاز العام لتذكيرات الاعتراف/النسخة الاحتياطية بس
+  if(!notified&&sys.length){ notified=true; notifyLocal(sys); }
 }
 
 async function loadRegistry(){
@@ -89,7 +90,7 @@ async function route(){
   if(role!=='student'){ const st=await db.get('staff'); if(st&&st.mustChange){ forcePw(); return; } }   // كلمة سر مؤقتة ⇒ تغيير إجباري
   setNavVisible(true); showVotd(true); paintWho();
   { const src=role==='student'?await activeProfile():await db.get('staff'); const nm=src&&src.name?String(src.name).trim().split(/\s+/)[0]:''; maybeWelcome(role,nm); }
-  if(role==='student'){ const ap=await activeProfile(); if(ap) setTimeout(()=>import('./push.js').then(m=>m.sync(ap.id)).catch(()=>{}),3000); }   // (v9.45) تجديد تسجيل الإشعارات (لو مفعّلها)
+  if(role==='student'){ const ap=await activeProfile(); if(ap) setTimeout(()=>import('./push.js').then(m=>m.sync(ap.id)).catch(()=>{}),3000); if(ap) setTimeout(()=>import('./chapter-alerts.js').then(m=>m.start()).catch(()=>{}),2500); }   // (v9.45) تجديد تسجيل الإشعارات (لو مفعّلها)
   const v=visible(), id=location.hash.replace('#/','')||land();
   const m=v.find(x=>x.id===id)||v[0], main=$('main');
   main.onclick=main.onchange=main.oninput=null; // لا تبقى معالجات وحدة سابقة
