@@ -1,0 +1,139 @@
+// يبني القائمة من modules/registry.json حسب الدور، ويفتح الوحدة عبر hash (#/id)
+// (v9.2) الدور يُقرأ من JWT (kv.staff) فقط؛ شاشة الدخول موحّدة بلا اختيار دور؛ التوجيه بعد الدخول حسب الدور.
+import {getRole,activeProfile,logout,ROLE_LABEL} from './auth.js';
+import * as EX from './exam-session.js';
+import * as db from './db.js';
+import {showGate} from './register.js';
+import * as ACC from './accounts.js';
+import {showPicker} from './picker.js';
+import {collect,notifyLocal} from './reminders.js';
+import * as SY from './sync.js';
+import {showLogin,showForgot} from './login.js';
+import {setSection,setNavVisible} from './ui.js';
+import {showVotd} from './votd.js';
+import {maybeWelcome,resetWelcome} from './welcome.js';
+import * as RW from './req-watch.js';
+import * as IB from './inbox.js';
+const $=(s)=>document.querySelector(s);
+let mods=[], role='student', dismissed=new Set(), notified=false, pending=0, unread=0, curId='';
+const LAND={servant:'dashboard',priest:'dashboard',owner:'members'};   // الصفحة الأولى بعد الدخول (لو غير موجودة نرجع لأول تبويب متاح)
+const ar=(n)=>String(n).replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
+async function refreshReminders(){
+  const box=$('#remind'); if(!box) return;
+  if(role!=='student'||!(await activeProfile())){ box.innerHTML=''; return; }
+  const list=(await collect()).filter(r=>!dismissed.has(r.id));
+  box.innerHTML=list.map(r=>`<div class="rm" data-go="${r.module}"><span>🔔 ${r.text}</span><button data-x="${r.id}" aria-label="إغلاق">✕</button></div>`).join('');
+  const sys=list.filter(r=>!r.ch);   // (v9.46) تذكير الإصحاح داخل التطبيق فقط؛ إشعار الجهاز العام لتذكيرات الاعتراف/النسخة الاحتياطية بس
+  if(!notified&&sys.length){ notified=true; notifyLocal(sys); }
+}
+
+async function loadRegistry(){
+  try{ return (await (await fetch('modules/registry.json')).json()).modules||[]; }
+  catch(e){ return []; }
+}
+function visible(){ return mods.filter(m=>m.enabled && m.roles.includes(role)); }
+function land(){ const v=visible(), t=v.find(x=>x.id===LAND[role]); return (t||v[0]||{}).id||''; }
+function markActive(){   // v9.19: المؤشر المنزلق (glider) يتحرك حسب ترتيب التبويب النشط
+  const as=[...document.querySelectorAll('nav a')], nav=$('nav'); as.forEach(a=>a.classList.toggle('active',a.dataset.id===curId));
+  const i=as.findIndex(a=>a.dataset.id===curId); nav.style.setProperty('--n',as.length||1); nav.style.setProperty('--i',Math.max(i,0)); nav.classList.toggle('noact',i<0);
+}
+
+function buildNav(){
+  const v=visible();
+  $('nav').innerHTML=v.map(m=>{ const c=m.id==='members'?pending:(m.id==='messages'&&role==='student'?unread:0);   // v9.41: النص في .t (يختفي في شريط الأيقونات) والعدّاد كشارة .nb
+    return `<a href="#/${m.id}" data-id="${m.id}" title="${m.title}" aria-label="${m.title}"><span class="i">${m.icon}</span><span class="t">${m.title}${c>0?` (${ar(c)})`:''}</span>${c>0?`<span class="nb">${ar(c)}</span>`:''}</a>`; }).join('')+'<div class="gl-glider" aria-hidden="true"></div>';
+  markActive();
+  return v;
+}
+// شاشة الدخول الموحّدة. hasProfile=true: الجهاز عليه ملف مخدوم، فنخفي أزرار "حساب جديد/عندي كود".
+function renderLogin(hasProfile,back){   // (v9.44) back: رجوع مخصص (الشاشة الرئيسية ← اختيار المخدوم)
+  const main=$('main'); main.onclick=main.onchange=main.oninput=null;
+  setNavVisible(false); hideWho(); showVotd(false); resetWelcome(); setSection('دخول');
+  showLogin(main,{
+    students:!hasProfile,
+    onForgot:()=>{ setSection('نسيت كلمة السر'); showForgot(main,{onBack:()=>renderLogin(hasProfile,back)}); },
+    onNew:()=>openGate('n'), onCode:()=>openGate('r'),
+    onCancel:back||(hasProfile?()=>{ setNavVisible(true); route(); }:null)
+  });
+}
+// (v9.40) مخدوم بلا حساب نشط: لو على الجهاز حسابات يظهر اختيار المخدوم (+ الرقم السري)، وإلا التسجيل الأول
+function renderEntry(){ if(ACC.count()>0) renderPicker(); else renderLogin(false); }
+function renderPicker(){
+  const main=$('main'); main.onclick=main.onchange=main.oninput=null;
+  setNavVisible(false); hideWho(); showVotd(false); resetWelcome(); setSection('اختيار المخدوم');
+  showPicker(main,{onHome:renderHome});
+}
+// (v9.44) «الشاشة الرئيسية» = نفس شاشة الدخول الافتتاحية (دخول + حساب جديد + عندي كود + نسيت كلمة السر) وزر رجوع لاختيار المخدوم
+function renderHome(){ renderLogin(false,renderPicker); }
+function openGate(initial){
+  hideWho(); showVotd(false); resetWelcome(); setSection('حساب جديد');
+  showGate($('main'),()=>{ history.replaceState(null,'','#/'); location.reload(); },{initial,onBack:renderEntry}); // إعادة تحميل: حالة الذاكرة تبدأ نظيفة للحساب الجديد
+}
+async function forcePw(){
+  const main=$('main'); main.onclick=main.onchange=main.oninput=null;
+  setNavVisible(false); hideWho(); showVotd(false); resetWelcome(); setSection('تغيير كلمة السر'); main.innerHTML='';
+  try{ const mod=await import('../modules/account/index.js'); await mod.mount(main,{forced:true,onDone:()=>route()}); }
+  catch(e){ main.innerHTML='<div class="ph">تعذّر تحميل الصفحة.</div>'; }
+}
+// (v9.40) اسم المخدوم/الخادم في الهيدر + زر «تبديل المخدوم» جنب «دخول» (للمخدوم فقط). يُخفيان في شاشات الدخول والاختيار.
+function hideWho(){ const w=$('#whoName'), s=$('#switchBtn'); if(w) w.style.display='none'; if(s) s.style.display='none'; }
+async function paintWho(){
+  const w=$('#whoName'), s=$('#switchBtn'); let name='';
+  try{ if(role==='student'){ const p=await activeProfile(); name=p&&p.name?String(p.name).trim():''; }
+    else{ const st=await db.get('staff'); name=(st&&st.name&&String(st.name).trim())||ROLE_LABEL[role]||''; } }catch(e){}
+  if(w){ w.textContent=name?'👤 '+name:''; w.style.display=name?'':'none'; }
+  if(s) s.style.display=role==='student'&&name?'':'none';
+}
+async function route(){
+  refreshReminders();
+  if(role==='student' && !(await activeProfile())){ renderEntry(); return; }
+  if(role!=='student'){ const st=await db.get('staff'); if(st&&st.mustChange){ forcePw(); return; } }   // كلمة سر مؤقتة ⇒ تغيير إجباري
+  setNavVisible(true); showVotd(true); paintWho();
+  { const src=role==='student'?await activeProfile():await db.get('staff'); const nm=src&&src.name?String(src.name).trim().split(/\s+/)[0]:''; maybeWelcome(role,nm); }
+  if(role==='student'){ const ap=await activeProfile(); if(ap) setTimeout(()=>import('./push.js').then(m=>m.sync(ap.id)).catch(()=>{}),3000); if(ap) setTimeout(()=>import('./chapter-alerts.js').then(m=>m.start()).catch(()=>{}),2500); }   // (v9.45) تجديد تسجيل الإشعارات (لو مفعّلها)
+  const v=visible(), id=location.hash.replace('#/','')||land();
+  const m=v.find(x=>x.id===id)||v[0], main=$('main');
+  main.onclick=main.onchange=main.oninput=null; // لا تبقى معالجات وحدة سابقة
+  curId=m?m.id:''; markActive();
+  if(!m){ setSection(''); main.innerHTML='<div class="ph">لا توجد تبويبات متاحة.</div>'; return; }
+  setSection(m.icon+' '+m.title);
+  if(m.type==='page'){ main.innerHTML=''; const f=document.createElement('iframe'); f.src=m.entry; main.appendChild(f); return; }
+  main.innerHTML='';
+  try{ const mod=await import('../'+m.entry); await mod.mount(main,{role}); }
+  catch(e){ main.innerHTML='<div class="ph">تعذّر تحميل الوحدة.</div>'; }
+}
+// الزر العلوي: "دخول" أو "خروج" فقط (بلا ذكر الدور). الدور يُشتق من جلسة موثّقة (kv.staff) لا من اختيار يدوي.
+function paintRoleBtn(){ const b=$('#roleBtn'); if(!b) return; b.textContent=role==='student'?'دخول':'خروج'; b.style.display=SY.enabled()||role!=='student'?'':'none'; }
+function setPending(n){ n=Number(n)||0; if(n===pending) return; pending=n; buildNav(); }
+function setUnread(n){ n=Number(n)||0; if(n===unread) return; unread=n; buildNav(); }
+function watch(){
+  if(role==='owner'){ RW.start(setPending); } else { RW.stop(); if(pending){ pending=0; } }
+  if(role==='student'){ IB.start(setUnread); } else { IB.stop(); unread=0; }   // v9.5: رسائل المخدوم
+}
+async function applyRole(){ role=await getRole(); paintRoleBtn(); watch(); buildNav(); history.replaceState(null,'','#/'+land()); route(); }
+export async function start(){
+  await ACC.init(); // (v9.40) الهجرة + تحديد الحساب النشط قبل أي قراءة شخصية
+  role=await getRole(); mods=await loadRegistry(); db_cleanup();
+  const btn=$('#roleBtn'); paintRoleBtn();
+  btn.onclick=async()=>{
+    if(role!=='student'){ await SY.staffLogout(); return; }  // staffLogout يطلق lawha:role فيُعاد بناء الواجهة
+    renderLogin(ACC.count()>0);
+  };
+  const sw=$('#switchBtn');
+  if(sw) sw.onclick=async()=>{ // تبديل المخدوم: لا يمسح شيئاً. لو فيه امتحان مفتوح نسأل (الامتحان بيتحفظ ويكمل لما يرجع لحسابه)
+    const s=await EX.load().catch(()=>null);
+    if(s&&!EX.expired(s)&&!confirm('فيه امتحان مفتوح. هيتحفظ ويكمل لما ترجع لحسابك. تبدّل؟')) return;
+    logout(); location.reload();
+  };
+  if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{ if(e.data&&e.data.type==='push-resub') activeProfile().then(p=>p&&import('./push.js').then(m=>m.sync(p.id,true))).catch(()=>{}); });   // (v9.45)
+  addEventListener('lawha:role',applyRole); // بعد دخول/خروج أو سحب الدور من الحساب
+  addEventListener('lawha:unread',(e)=>setUnread(e.detail));
+  addEventListener('lawha:reqcount',(e)=>{ RW.seen(e.detail); setPending(e.detail); }); // اللوحة نفسها حمّلت العدد
+  watch(); buildNav(); addEventListener('hashchange',route); addEventListener('lawha:data',refreshReminders);
+  $('#remind').onclick=(e)=>{ const x=e.target.closest('[data-x]'); if(x){ dismissed.add(x.dataset.x); refreshReminders(); return; } const g=e.target.closest('[data-go]'); if(g) location.hash='#/'+g.dataset.go; };
+  route();
+  SY.init(); if(role==='student') SY.logSession(); // المزامنة (تتوقف تلقائياً لو config.js فاضي)
+  if(navigator.onLine) setTimeout(()=>import('./books.js').then(m=>m.prefetch()),1500);
+}
+// مفتاح role القديم (منتقي v5 التجريبي) لم يعد له أثر
+function db_cleanup(){ db.del('role').catch(()=>{}); }
