@@ -1,6 +1,7 @@
 // تذكيرات داخلية (المرحلة ٤ب). نص إشعار الجهاز عام عمداً ("تذكير من التطبيق") حفاظاً على الخصوصية.
 import * as db from './db.js';
 import * as D from './dates.js';
+import * as CA from './chapter-alerts.js';
 export function confessionNext(C){
   const ks=Object.keys((C&&C.entries)||{}).sort(), last=ks[ks.length-1]||null;
   const iv=(C&&C.interval)||40, ov=C&&C.nextOverride;
@@ -17,6 +18,8 @@ export async function collect(){
       if(left<=3) out.push({id:'confession',module:'confession',text:left<0?`تأخر موعد الاعتراف ${D.n(-left)} يوم`:left===0?'اليوم موعد الاعتراف':`باقي ${D.n(left)} يوم على موعد الاعتراف`}); } }
   const since=await db.get('dataSince'), lb=await db.get('lastBackup');
   if(since && Date.now()-(lb||since)>14*864e5) out.push({id:'backup',module:'me',text:'حان وقت حفظ نسخة احتياطية من سجلاتك'});
+  // (v9.46) إصحاح اتفتح من أقل من ٣ ساعات ولسه مفتوح ولم تفتحه (بديل لو إشعار الجهاز ما وصلش)
+  try{ for(const c of (await CA.pending()).slice(0,2)) out.push({id:'ch-'+c.bid+'-'+c.num,module:'books',ch:true,text:`📖 إصحاح ${D.n(c.num)} من ${await CA.titleOf(c.bid)} لسه مفتوح ولم تفتحه`}); }catch(e){}
   return out;
 }
 export async function notifyLocal(list){
