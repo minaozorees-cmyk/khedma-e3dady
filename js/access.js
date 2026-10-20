@@ -38,6 +38,8 @@ export function lock(bid,num){
   if(a.c!=null&&t>=a.c) return {why:'after',at:a.c};
   return null;
 }
+// (v9.46) كل المواعيد المخزّنة: [{bid,num,o,c}] (o/c بالمللي ثانية أو null) — للتنبيه المحلي البديل (chapter-alerts.js)
+export function schedule(){ return Object.keys(map).map(k=>{ const i=k.lastIndexOf('|'), a=map[k]; return {bid:k.slice(0,i),num:Number(k.slice(i+1)),o:a.o,c:a.c}; }); }
 export const isLocked=(bid,num)=>!!lock(bid,num);
 // (v9.39) أقرب لحظة قادمة (فتح أو قفل) من المواعيد المخزّنة، بالمللي ثانية من الآن؛ null لو مفيش. تُستخدم لتحديث قائمة الأسفار تلقائياً عند حلول الميعاد.
 export function nextChangeIn(){
