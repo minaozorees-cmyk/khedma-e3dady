@@ -8,6 +8,7 @@ import * as LIB from '../../js/library.js';
 import * as R from '../../js/results.js';
 import * as EX from '../../js/exam-session.js';
 import {loadAll} from '../../js/books.js';
+import * as PUSH from '../../js/push.js';
 import {esc} from '../../js/consts.js';
 
 const ar=(v)=>D.n(v);
@@ -75,7 +76,8 @@ export async function mount(el){
     <div class="card2"><b>التذكيرات</b>
       <label class="chk"><input type="checkbox" id="rm" ${settings.remind===false?'':'checked'}> تفعيل التذكيرات داخل التطبيق</label>
       <button class="btn sec" id="nt" ${perm==='granted'||perm==='denied'||!notifOK?'disabled':''}>${!notifOK?'الإشعارات غير مدعومة':perm==='granted'?'إشعارات الجهاز مفعّلة':perm==='denied'?'الإشعارات محجوبة من إعدادات المتصفح':'تفعيل إشعارات الجهاز'}</button>
-      <div class="hint">الإشعار يظهر عند فتح التطبيق بنص عام ("تذكير من التطبيق")، وقد تحتاج بعض هواتف الأندرويد لاستثناء التطبيق من توفير البطارية.</div></div>
+      <div class="hint">الإشعار يظهر عند فتح التطبيق بنص عام ("تذكير من التطبيق")، وقد تحتاج بعض هواتف الأندرويد لاستثناء التطبيق من توفير البطارية.</div>
+      <div id="pushbox" style="margin-top:14px"></div></div>
     <div class="card2"><b>👥 الحسابات على هذا الجهاز</b>
       <p class="hint">${ar(ACC.count())} من ${ar(ACC.MAX)} حسابات. تبديل المخدوم لا يمسح أي بيانات. الرقم السري يُطلب فقط لما يكون على الجهاز أكتر من حساب.</p>
       <button class="btn" id="sw">🔁 تبديل المخدوم</button>
@@ -96,6 +98,28 @@ export async function mount(el){
       const added=await B.applyBackup(r.clean); msg(`تم الاستيراد: ${D.n(added)} سجل جديد من ${D.n(r.count)}`);
     }catch(err){ msg(err.message||'تعذّر الاستيراد'); }
   };
+
+  // (v9.45) إشعارات الإصحاحات حتى لو التطبيق مقفول (Web Push). في المرحلة ١: تفعيل الجهاز + إشعار تجريبي.
+  const PM={denied:'الإذن اتحجب.',dismissed:'ما اتفعّلش (الإذن اتقفل).',subscribe:'تعذّر الاشتراك. جرّب تاني على نت أقوى.',offline:'مفيش اتصال بالنت.',nosql:'الخدمة لسه ما اتجهّزتش على السيرفر.',not_owner:'تعذّر ربط الحساب. حدّث التطبيق وجرّب تاني.',server:'تعذّر التنفيذ. جرّب بعد شوية.',unsupported:'الإشعارات غير مدعومة هنا.',
+    rate:'استنى شوية وجرّب تاني.',nofn:'دالة الإرسال غير منشورة على السيرفر.',novapid:'مفاتيح الإرسال غير مضبوطة على السيرفر.',not_found:'الجهاز غير مسجّل. اضغط «إعادة التفعيل».',failed:'الإرسال فشل. جرّب تاني.',gone:'الاشتراك انتهى. فعّل تاني.'};
+  async function paintPush(note){
+    const b=$('#pushbox'); if(!b) return;
+    const st=await PUSH.state(p.id).catch(()=>({s:'off'})), say=(t)=>note?`<div class="hint" id="pushm">${esc(note)}</div>`:'<div class="hint" id="pushm"></div>';
+    if(st.s==='off'){ b.innerHTML=''; return; }
+    const head='<b>🔔 إشعارات الإصحاحات</b>', intro='<div class="hint">تنبيه لما إصحاح يتفتح، حتى لو التطبيق مقفول. التنبيهات التلقائية بتبدأ في تحديث قريب، ودلوقتي تقدر تفعّل جهازك وتجرّب إشعار تجريبي.</div>';
+    const bat='<div class="hint">لو الإشعار اتأخر: من إعدادات الأندرويد اسمح لـChrome بالعمل في الخلفية بدون توفير بطارية.</div>';
+    if(st.s==='unsupported') b.innerHTML=head+'<div class="hint">المتصفح ده ما بيدعمش الإشعارات والتطبيق مقفول. على آيفون: ثبّت التطبيق على الشاشة الرئيسية الأول (مشاركة ← إضافة إلى الشاشة الرئيسية).</div>';
+    else if(st.s==='denied') b.innerHTML=head+'<div class="hint">الإشعارات محجوبة. افتح إعدادات الموقع/التطبيق في الموبايل واسمح بالإشعارات، وبعدين ارجع هنا.</div>';
+    else if(st.s==='idle') b.innerHTML=head+intro+'<button class="btn" id="pe">🔔 فعّل إشعارات الإصحاحات</button>'+say()+bat;
+    else if(st.s==='partial') b.innerHTML=head+'<div class="warn">اشتراك الجهاز غير مكتمل.</div><button class="btn" id="pe">إعادة التفعيل</button>'+say();
+    else b.innerHTML=head+'<div class="hint">✅ مفعّلة على هذا الجهاز'+(st.unsure?' (لم يتم التحقق من السيرفر، لا يوجد اتصال)':'')+'.</div><button class="btn sec" id="pt">إرسال إشعار تجريبي</button><button class="btn sec" id="px">إيقاف</button>'+say()+bat;
+    const m=(t)=>{ const x=$('#pushm'); if(x) x.textContent=t; }, lock=(x,on)=>{ if(x){ x.disabled=on; } };
+    const pe=$('#pe'), pt=$('#pt'), px=$('#px');
+    if(pe) pe.onclick=async()=>{ lock(pe,true); const r=await PUSH.enable(p.id); if(r.ok) return paintPush('اتفعّلت ✅ جرّب «إرسال إشعار تجريبي».'); lock(pe,false); m(PM[r.reason]||PM.server); };
+    if(pt) pt.onclick=async()=>{ lock(pt,true); m('جارٍ الإرسال…'); const r=await PUSH.test(); lock(pt,false); m(r.ok?'اتبعت إشعار تجريبي ✅ لو ما ظهرش خلال ثواني راجع إعدادات إشعارات Chrome وتوفير البطارية.':(PM[r.reason]||PM.server)); };
+    if(px) px.onclick=async()=>{ lock(px,true); const r=await PUSH.disable(p.id); if(r.ok) return paintPush('اتوقفت الإشعارات على هذا الحساب.'); lock(px,false); m(PM[r.reason]||PM.server); };
+  }
+  paintPush();
   $('#rm').onchange=async(e)=>{ const s=(await db.get('settings'))||{}; s.remind=e.target.checked; await db.set('settings',s); dispatchEvent(new Event('lawha:data')); };
   $('#nt').onclick=async()=>{
     const r=await Notification.requestPermission();
