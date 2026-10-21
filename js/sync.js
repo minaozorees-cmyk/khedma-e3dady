@@ -78,8 +78,17 @@ const H={
     const SA=(await db.get('syncedAttempts'))||{}; if(SA[a.id]) return 'done';
     const row={id:a.id,profile_id:j.profileId,book_id:a.bookId,chapter_num:a.chapterNum,attempt_no:j.attemptNo||a.attemptNo||rankOf(R.attempts,a),
       score:a.score,total:a.total,source:a.source||'finish',answered:a.answered,duration_sec:a.durationSec==null?null:a.durationSec,attempted_at:new Date(a.at).toISOString()};
-    // v9.12: لو عمود duration_sec لم يُضف على السيرفر بعد (PGRST204) نرفع النتيجة بدونه بدل ما تفشل
-    const ins=async()=>{ try{ await insert('results',row); }catch(e){ if(e.code!=='PGRST204'||!('duration_sec' in row)) throw e; delete row.duration_sec; await insert('results',row); } };
+    // (v9.482) شيلنا الـfallback القديم (PGRST204 ← رفع النتيجة بدون duration_sec بصمت): كان بيضيّع الوقت من غير ما حد يعرف.
+    // دلوقتي duration_sec بيتبعت دايماً، وأي فشل بيتسجّل في الكونسول بوضوح. لو السيرفر مش شايف العمود (كاش PostgREST قديم)
+    // بنعامله كخطأ مؤقت: النتيجة تفضل في الطابور وتتعاد بتراجع زمني (مش بتموت ومش بتترفع ناقصة) والسبب يظهر في زر الإرسال.
+    const ins=async()=>{
+      try{ await insert('results',row); }
+      catch(e){
+        console.error('[sync] result.create فشل رفع النتيجة',{attemptId:a.id,status:e.status,code:e.code,message:e.message,duration_sec:row.duration_sec});
+        if(e.code==='PGRST204') throw new E(503,'PGRST204',"PostgREST مش شايف عمود duration_sec — شغّل: notify pgrst, 'reload schema'");
+        throw e;
+      }
+    };
     try{ await ins(); }
     catch(e){
       if(e.code!=='23505') throw e; // تعارض على (profile,book,chapter,attempt_no) = رقم محاولة مستخدم على السيرفر: نأخذ التالي
