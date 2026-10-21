@@ -306,7 +306,7 @@
     },
     {
       "id": "account",
-      "title": "كلمة السر",
+      "title": "حسابي",
       "icon": "🔐",
       "roles": [
         "servant",
