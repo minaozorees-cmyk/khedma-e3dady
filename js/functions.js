@@ -5,6 +5,6 @@
 export const FN = {
   'restore': 'restore',
   'reset-password': 'reset-password',
-  'staff-admin': 'staff-admin',
+  'staff-admin': 'clever-service',
   'push-send': 'push-send',          // (v9.45) الإشعارات الفعلية
 };
