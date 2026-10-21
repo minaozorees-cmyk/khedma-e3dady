@@ -9,6 +9,7 @@ import {checkUpdate} from '../../js/update.js';
 import {esc} from '../../js/consts.js';
 import {n} from '../../js/dates.js';
 import * as TTS from '../../js/tts.js';
+import * as T from '../../js/solve-timer.js';
 
 const AR='٠١٢٣٤٥٦٧٨٩';
 const mmss=(ms)=>{ const s=Math.ceil(Math.max(0,ms)/1000); return (n(Math.floor(s/60))+':'+String(s%60).padStart(2,'0')).replace(/\d/g,d=>AR[d]); };
@@ -20,7 +21,7 @@ export async function mount(el,ctx){
   const {books,problems}=await loadAll();
   const prof=await A.activeProfile(), pid=prof?prof.id:'local', nm=esc((prof&&prof.name.split(' ')[0])||'حبيبي');
   const staff=ctx.role!=='student', isStudent=ctx.role==='student'&&!!prof, gated=ctx.role==='student'; // v9.21: القفل بالمواعيد على المخدوم فقط
-  let st={s:'books'}, flash='', tick=null, sess=null, bt=null;   // bt: مؤقّت ظهور أسفار جديدة عند حلول ميعادها (v9.39)
+  let st={s:'books'}, flash='', tick=null, sess=null, bt=null, tm=null, qt=null;   // (v9.481) tm: وقت الحل الفعلي، qt: مؤقّت عرض العدّاد   // bt: مؤقّت ظهور أسفار جديدة عند حلول ميعادها (v9.39)
   const unlocked=new Set(); // إصحاحات انتهى عدّاد قراءتها في هذه الجلسة
   const book=()=>books.find(b=>b.id===st.bid);
   const chap=()=>{ const b=book(); return b&&b.chapters.find(c=>c.chapterNum===st.num); };
@@ -47,15 +48,16 @@ export async function mount(el,ctx){
   const dur=(a,b)=>{ const s=Math.round(((b||0)-(a||0))/1000); return a&&b&&s>=0&&s<=7200?s:null; };
 
   // ===== الجلسة المحفوظة =====
-  const persist=()=>{ const c=chap();
+  const pnow=()=>performance.now();
+  const persist=()=>{
     return S.save({bid:st.bid,num:st.num,i:st.i,sel:st.sel,ans:Array.from({length:st.qs.length},(_,k)=>st.ans[k]??null),
-      opts:st.opts,tl:st.shuf.map(x=>x?x.map(e=>e.id):null),startedAt:st.startedAt,profileId:pid}); };
+      opts:st.opts,tl:st.shuf.map(x=>x?x.map(e=>e.id):null),startedAt:st.startedAt,profileId:pid,el:tm?T.snap(tm,pnow()):0}); };   // el = ثواني الحل المجمّعة (v9.481)
   // يغلق الجلسة ويحسبها محاولة بدرجتها الحالية؛ يرجع رسالة للمخدوم
   async function closeSession(s,source){
     const f=findCh(s.bid,s.num), qs0=f&&sessQs(f.c,s);
     if(!f||!qs0){ await S.clear(); sess=null; return ''; }
     const ans=s.ans||[], r=X.grade(qs0,ans);
-    await R.record({bookId:s.bid,chapterNum:s.num,score:r.score,total:r.total,source,answered:answeredCount(qs0,ans),durationSec:dur(s.startedAt,s.updatedAt)});
+    await R.record({bookId:s.bid,chapterNum:s.num,score:r.score,total:r.total,source,answered:answeredCount(qs0,ans),durationSec:Number.isFinite(s.el)?T.toDuration(s.el):dur(s.startedAt,s.updatedAt)});   // جلسات قديمة بلا el: الحساب القديم
     await S.clear(); sess=null;
     const where=`${f.b.title} — إصحاح ${n(s.num)}`;
     return source==='expired'
@@ -70,7 +72,7 @@ export async function mount(el,ctx){
     for(let k=0;k<L;k++){ const q=qs[k];
       if(q.isTimeline){ const ev=(s.tl[k]||[]).map(id=>q.events.find(e=>e.id===id)); if(ev.length!==q.events.length||ev.some(e=>!e)) return null; shuf.push(ev); opts.push(null); }
       else{ const p=s.opts[k]; if(!Array.isArray(p)||p.length!==q.opts.length||[...p].sort((a,b)=>a-b).some((v,x)=>v!==x)) return null; shuf.push(null); opts.push(p); } }
-    return {s:'exam',bid:s.bid,num:s.num,i:Math.min(Math.max(0,s.i|0),L-1),ans:[...s.ans],opts,shuf,sel:s.sel==null?null:s.sel,qs,startedAt:s.startedAt};
+    return {s:'exam',bid:s.bid,num:s.num,i:Math.min(Math.max(0,s.i|0),L-1),ans:[...s.ans],opts,shuf,sel:s.sel==null?null:s.sel,qs,startedAt:s.startedAt,el0:Number.isFinite(s.el)&&s.el>=0?s.el:0};
   }
   function enterRead(bid,num){
     const b=books.find(x=>x.id===bid); st={s:'read',bid,num,readUntil:0};
@@ -82,11 +84,13 @@ export async function mount(el,ctx){
     st={s:'exam',bid:st.bid,num:st.num,i:0,ans:[],startedAt:Date.now(),sel,qs,
       opts:qs.map(q=>q.isTimeline?null:X.shuffle(q.opts.map((_,k)=>k))), // ترتيب العرض؛ data-k يبقى الـindex الأصلي
       shuf:qs.map(q=>q.isTimeline?X.shuffledEvents(q):null)};
+    tm=T.create(0);   // العدّاد يبدأ فعلياً لما شاشة السؤال تظهر (qSync)
     await persist();
   }
   async function finish(source){
     const r=X.grade(st.qs,st.ans);
-    const att=await R.record({bookId:st.bid,chapterNum:st.num,score:r.score,total:r.total,source,answered:answeredCount(st.qs,st.ans),durationSec:dur(st.startedAt,Date.now())});
+    if(tm) T.pause(tm,pnow());
+    const att=await R.record({bookId:st.bid,chapterNum:st.num,score:r.score,total:r.total,source,answered:answeredCount(st.qs,st.ans),durationSec:tm?T.toDuration(tm.el):dur(st.startedAt,Date.now())});   // (v9.481) وقت الأسئلة الفعلي
     await S.clear(); sess=null;
     st.res=r; st.att=att; st.sum=R.summary(await R.all(),st.bid,st.num); st.s='result';
   }
@@ -152,7 +156,7 @@ export async function mount(el,ctx){
           <ol class="tl">${picked.map(id=>`<li><button class="opt on" data-a="unpick" data-k="${q.events.indexOf(byId(id))}">${esc(byId(id).text)}</button></li>`).join('')}</ol>
           ${rest.map(e=>`<button class="opt" data-a="pick" data-k="${q.events.indexOf(e)}">${esc(e.text)}</button>`).join('')}`;
       } else body=st.opts[i].map(k=>`<button class="opt${a===k?' on':''}" data-a="ans" data-k="${k}">${esc(q.opts[k])}</button>`).join(''); // k = الـindex الأصلي
-      return `<div class="gate">${zbar()}<div class="hint">سؤال ${n(i+1)} من ${n(st.qs.length)}</div><div class="prog"><i style="width:${Math.round(100*i/st.qs.length)}%"></i></div>
+      return `<div class="gate">${zbar()}<div class="hint">سؤال ${n(i+1)} من ${n(st.qs.length)} · ⏱ <span id="qtimer" style="font-variant-numeric:tabular-nums">${T.clock(tm?tm.el:0)}</span></div><div class="prog"><i style="width:${Math.round(100*i/st.qs.length)}%"></i></div>
         <div class="card2">${q.type?`<small class="k">${esc(q.type)}</small>`:''}<div class="qt">${esc(q.q)}</div>${body}</div>
         <button class="btn" data-a="next" ${X.isAnswered(q,a)?'':'disabled'}>${last?'إنهاء':'التالي'}</button>${back('quit','خروج من الامتحان')}</div>`;
     },
@@ -164,6 +168,7 @@ export async function mount(el,ctx){
         return `<div class="row rv"><span>${ok?'✔':'✘'} ${esc(q.q)}${fix}${!ok&&q.ref?`<div class="hint">${esc(q.ref)}</div>`:''}</span></div>`; }).join('');
       return `<div class="gate"><div class="card2" style="text-align:center"><div class="code" style="font-size:2rem;letter-spacing:2px">${n(r.score)} / ${n(r.total)}</div><div>${n(pc)}٪</div>
         <div class="hint">محاولات: ${n(sm.n)} · أول محاولة: ${n(f.score)}/${n(f.total)}</div>
+        <div class="hint">⏱ وقت الحل: ${T.text(st.att.durationSec)}</div>
         <div class="hint">${st.att.attemptNo===1?'هذه المحاولة هي المعتمدة':'هذه محاولة للتدريب، والمعتمدة هي الأولى'}</div></div>
         <div class="card2"><b>مراجعة الإجابات</b>${rev}</div>
         <div class="card2"><button class="btn" data-a="send">📤 إرسال النتيجة</button><div class="hint" id="sendst">بتتبعت تلقائياً. الزر للتأكيد والتحقق من وجود تحديث للتطبيق.</div></div>
@@ -180,8 +185,25 @@ export async function mount(el,ctx){
       else{ unlocked.add(ukey()); go.disabled=false; go.textContent=goLabel(c,0); if(cd) cd.remove(); clearInterval(tick); }
     },500);
   }
+  // (v9.481) عدّاد وقت الحل: تحديثه = textContent لعنصر واحد (#qtimer) كل ثانية، بدون render (عشان ما يبوّظش تثبيت الشاشة)
+  const qStop=()=>{ if(qt){ clearInterval(qt); qt=null; } };
+  const qPaint=()=>{ const e=el.querySelector('#qtimer'); if(e&&tm){ const t=T.clock(tm.el); if(e.textContent!==t) e.textContent=t; } };
+  function qSync(){
+    qStop();
+    if(!tm) return;
+    if(st.s==='exam'&&!document.hidden&&el.isConnected){
+      T.resume(tm,pnow()); qPaint();
+      qt=setInterval(()=>{ if(!el.isConnected||st.s!=='exam'||document.hidden){ qStop(); return; } T.tick(tm,pnow()); qPaint(); },1000);
+    } else T.pause(tm,pnow());   // خارج شاشة الأسئلة أو الصفحة مخفية: الوقت واقف
+  }
+  // الصفحة اتخبّت/اتقفلت: نوقف العدّاد ونحفظ الرقم؛ ورجعت: نكمّل من نفس الرقم
+  const onVis=()=>{ if(!el.isConnected){ document.removeEventListener('visibilitychange',onVis); removeEventListener('pagehide',onHide); return; }
+    if(st.s!=='exam'||!tm) return;
+    if(document.hidden){ qStop(); T.pause(tm,pnow()); persist(); } else qSync(); };
+  const onHide=()=>{ if(el.isConnected&&st.s==='exam'&&tm){ qStop(); T.pause(tm,pnow()); persist(); } };
+  document.addEventListener('visibilitychange',onVis); addEventListener('pagehide',onHide);
   async function render(){
-    clearInterval(tick); clearTimeout(bt);
+    clearInterval(tick); clearTimeout(bt); qStop();
     // حماية: لو تغيّر أو اختفى السفر/الإصحاح (بعد إعادة تحميل) نرجع لقائمة آمنة بدل ما نرمي خطأ
     if(['chapters','verses','read','med','exam','result','resume','locked'].includes(st.s)&&!book()) st={s:'books'};
     if(['read','med','exam','result','locked'].includes(st.s)&&!chap()) st=book()?{s:'chapters',bid:st.bid}:{s:'books'};
@@ -191,7 +213,7 @@ export async function mount(el,ctx){
     let html=await views[st.s]();
     if(flash&&st.s!=='exam'){ html=`<div class="card2">ℹ️ ${esc(flash)}</div>`+html; flash=''; }
     if(['read','med','exam','verses','result'].includes(st.s)) html=`<div class="zm" style="--qz:${zoom/100}">${html}</div>`;   // (v9.39) نطاق التكبير
-    TTS.stop(); el.innerHTML=html; el.scrollTop=0;
+    TTS.stop(); el.innerHTML=html; el.scrollTop=0; qSync();
     if(st.s==='read'){ TTS.bind(el); startTick(); }
     if(gated&&st.s==='books'){ const w=AC.nextChangeIn(); if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&st.s==='books') render(); },Math.min(w+1000,2147e6)); }   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
   }
@@ -236,7 +258,7 @@ export async function mount(el,ctx){
     }
     else if(a==='resume'){
       const h=sess&&hydrate(sess);
-      if(h) st=h; else{ await S.clear(); sess=null; flash='تغيّر محتوى الامتحان فلا يمكن استكماله، ابدأ من جديد.'; st={s:'books'}; }
+      if(h){ st=h; tm=T.create(h.el0); } else{ await S.clear(); sess=null; flash='تغيّر محتوى الامتحان فلا يمكن استكماله، ابدأ من جديد.'; st={s:'books'}; }
     }
     else if(a==='fresh'){ const bid=st.bid, num=st.num; if(sess) flash=await closeSession(sess,'exit'); st.bid=bid; st.num=num; if(gated&&AC.lock(bid,num)) st={s:'locked',bid,num}; else enterRead(bid,num); }
     else if(a==='redeem'){
@@ -253,10 +275,33 @@ export async function mount(el,ctx){
       unlocked.add(ukey()); await startExam();
     }
     else if(a==='quit'){ if(!confirm('لو خرجت دلوقتي، هتتحسب محاولة بدرجتك الحالية. متأكد؟')) return; await finish('exit'); }
-    else if(a==='ans'){ st.ans[st.i]=k; await persist(); }
-    else if(a==='pick'){ const q=st.qs[st.i]; st.ans[st.i]=[...(st.ans[st.i]||[]),q.events[k].id]; await persist(); }
-    else if(a==='unpick'){ const q=st.qs[st.i], id=q.events[k].id; st.ans[st.i]=(st.ans[st.i]||[]).filter(x=>x!==id); await persist(); }
-    else if(a==='next'){ if(st.i===st.qs.length-1) await finish('finish'); else{ st.i++; await persist(); } }
+    // (v9.481) أثناء الحل: تحديث الـDOM مباشرة بدون render() — عشان الشاشة ما ترجعش لأول الصفحة ولا يظهر الهيدر
+    else if(a==='ans'||a==='pick'||a==='unpick'){
+      if(st.s!=='exam') return;
+      const q=st.qs[st.i];
+      if(a==='ans'){
+        st.ans[st.i]=k;
+        el.querySelectorAll('.opt[data-a="ans"]').forEach(b=>b.classList.toggle('on',Number(b.dataset.k)===k));
+      } else if(a==='pick'){
+        const ol=el.querySelector('ol.tl'); if(!ol) return;
+        st.ans[st.i]=[...(st.ans[st.i]||[]),q.events[k].id];
+        const li=document.createElement('li'); t.dataset.a='unpick'; t.classList.add('on'); li.appendChild(t); ol.appendChild(li);
+      } else{
+        const id=q.events[k].id, li=t.closest('li'), ol=el.querySelector('ol.tl'); if(!li||!ol) return;
+        st.ans[st.i]=(st.ans[st.i]||[]).filter(x=>x!==id);
+        li.remove(); t.dataset.a='pick'; t.classList.remove('on');
+        // نرجّع الحدث لمكانه حسب ترتيب العرض العشوائي الأصلي
+        const pos=(b)=>st.shuf[st.i].findIndex(e=>e===q.events[Number(b.dataset.k)]);
+        const rest=[...el.querySelectorAll('button.opt[data-a="pick"]')].filter(b=>b!==t), nxt=rest.find(b=>pos(b)>pos(t));
+        if(nxt) nxt.before(t); else if(rest.length) rest[rest.length-1].after(t); else ol.after(t);
+      }
+      const nb=el.querySelector('[data-a="next"]'); if(nb) nb.disabled=!X.isAnswered(q,st.ans[st.i]);
+      await persist(); return;
+    }
+    else if(a==='next'){
+      if(st.i===st.qs.length-1) await finish('finish');
+      else{ st.i++; await persist(); window.dispatchEvent(new CustomEvent('lawha:keep-header',{detail:1200})); }   // السؤال الجديد: ما يظهرش الهيدر (v9.481)
+    }
     await render();
   };
 
