@@ -338,11 +338,43 @@ export async function pushTest(endpoint){   // المخدوم: إشعار تجر
   if(!enabled()||offline()) return {ok:false,reason:'offline'};
   try{ const a=await token(); return await pushFn(a.access,{action:'test',endpoint}); }catch(e){ return {ok:false,reason:'offline'}; }
 }
-export async function pushSend(payload){    // المالك: ping | test_profile | test_all
+export async function pushSend(payload){    // المالك: ping | test_profile | test_all | dispatch_preview | digest_preview ؛ وأي طاقم: staff_test | my_missed
   let s; try{ s=await staffAuth(false); }catch(e){ return {ok:false,reason:'offline'}; }
   if(!s) return {ok:false,reason:'auth'};
   return pushFn(s.access,payload);
 }
+// ===== (v9.48) إشعارات الخدام (ملخص المخدومين): نفس فكرة المخدوم لكن بجلسة الطاقم. الهوية من auth.uid() جوه دوال السيرفر، مفيش معرّف بيتبعت من هنا =====
+const pushWhyStaff=(f)=>f.code==='42501'?'not_staff':(f.status===404||f.code==='PGRST202'||f.code==='42883'||f.code==='42P01')?'nosql':'server';
+const staffErr=(e)=>e&&e.status===401?'auth':'offline';
+export async function pushSubscribeStaff(sub){
+  if(!enabled()||offline()) return {ok:false,reason:'offline'};
+  try{
+    const j=sub&&sub.toJSON?sub.toJSON():(sub||{}), k=j.keys||{};
+    if(!j.endpoint||!k.p256dh||!k.auth) return {ok:false,reason:'subscribe'};
+    const r=await staffApi('/rest/v1/rpc/push_subscribe_staff',{method:'POST',body:{p_endpoint:j.endpoint,p_p256dh:k.p256dh,p_auth:k.auth,p_ua:String(navigator.userAgent||'').slice(0,300)}});
+    return r.ok?{ok:true}:{ok:false,reason:pushWhyStaff(await fail(r))};
+  }catch(e){ return {ok:false,reason:staffErr(e)}; }
+}
+export async function pushUnsubscribeStaff(endpoint){
+  if(!enabled()||offline()) return {ok:false,reason:'offline'};
+  try{
+    const r=await staffApi('/rest/v1/rpc/push_unsubscribe_staff',{method:'POST',body:{p_endpoint:endpoint}});
+    return r.ok?{ok:true}:{ok:false,reason:pushWhyStaff(await fail(r))};
+  }catch(e){ return {ok:false,reason:staffErr(e)}; }
+}
+export async function pushStatusStaff(endpoint){   // true/false، أو null لو تعذّر السؤال (نت/SQL ناقص)
+  if(!enabled()||offline()) return null;
+  try{
+    const r=await staffApi('/rest/v1/rpc/push_status_staff',{method:'POST',body:{p_endpoint:endpoint}});
+    return r.ok?(await r.json())===true:null;
+  }catch(e){ return null; }
+}
+export async function myAssignedCount(){   // عدد المخدومين المسندين للحساب الحالي، أو null لو تعذّر
+  if(!enabled()||offline()) return null;
+  try{ const r=await staffApi('/rest/v1/rpc/my_assigned_count',{method:'POST',body:{}}); if(!r.ok) return null; const n=await r.json(); return Number.isInteger(n)?n:null; }catch(e){ return null; }
+}
+export const pushStaffTest=(endpoint)=>pushSend({action:'staff_test',endpoint});   // إشعار تجريبي لجهاز الخادم نفسه
+export const pushMyMissed=(hours)=>pushSend({action:'my_missed',hours});            // مخدومي الخادم المسندين له اللي ما فتحوا الإصحاح (حسب الدالة)
 // تغيير كلمة سر الحساب الحالي (GoTrue PUT /auth/v1/user) وإزالة علَم "كلمة مؤقتة".
 export async function changePassword(password){
   let s; try{ s=await staffAuth(false); }catch(e){ return {ok:false,reason:'offline'}; }
