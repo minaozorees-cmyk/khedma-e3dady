@@ -1,4 +1,5 @@
 // لوحة «الإشعارات» (v9.46): الأجهزة المشتركة + إعدادات الجدولة التلقائية + معاينة + سجل الإرسال. للمالك فقط
+// (v9.48) + «🤝 ملخص الخدام»: مفتاح تشغيل + ميعاد الملخص + عدد الخدام المشتركين + معاينة (بدون إرسال) + آخر سجل.
 // (الحماية الفعلية: RLS على push_subscriptions/push_settings/push_log + التحقق داخل Edge Function).
 import * as SY from '../../js/sync.js';
 import {api,all,errMsg,fmt,SB} from '../../js/sapi.js';
@@ -7,11 +8,12 @@ const WHY={nofn:'الـEdge Function (push-send) غير منشورة بعد.',no
 const ST={pending:'قيد الإرسال',sent:'اتبعت ✅',failed:'فشل ❌',skipped_opened:'تخطّي: فتحه',skipped_closed:'تخطّي: اتقفل',skipped_quiet:'تخطّي: ساعات الهدوء',skipped_noprev:'تخطّي: ما وصلهوش الأول'};
 const dev=(ua)=>{ ua=String(ua||''); const os=/Android/i.test(ua)?'أندرويد':/iPhone|iPad|iOS/i.test(ua)?'آيفون':/Windows/i.test(ua)?'ويندوز':/Mac/i.test(ua)?'ماك':/Linux/i.test(ua)?'لينكس':'جهاز';
   const br=/Edg\//.test(ua)?'Edge':/SamsungBrowser/i.test(ua)?'Samsung':/Firefox/i.test(ua)?'Firefox':/Chrome|CriOS/.test(ua)?'Chrome':/Safari/.test(ua)?'Safari':''; return os+(br?' · '+br:''); };
+const DST={pending:'قيد الإرسال',sent:'اتبعت ✅',failed:'فشل ❌',skipped_zero:'تخطّي: العدد صفر',skipped_role:'تخطّي: الحساب مش خادم/موقوف'};
 const HHMM=/^([01]\d|2[0-3]):[0-5]\d$/;
 const ago=(iso)=>{ if(!iso) return null; const m=Math.round((Date.now()-Date.parse(iso))/60000); return m<1?'أقل من دقيقة':m<60?m+' دقيقة':m<1440?Math.round(m/60)+' ساعة':Math.round(m/1440)+' يوم'; };
 export async function mount(el,{role}={}){
   if(role!=='owner'){ el.innerHTML='<div class="ph">هذه الصفحة للمالك فقط.</div>'; return; }
-  const S={subs:[],names:new Map(),ok:true,busy:false,vapid:null,cron:null,cfg:null,sched:true,log:[],prev:null,books:new Map()};
+  const S={subs:[],names:new Map(),ok:true,busy:false,vapid:null,cron:null,cfg:null,sched:true,log:[],prev:null,books:new Map(),ssubs:[],sok:true,staff:new Map(),dlog:null,dprev:null};
   const root=document.createElement('div'); root.className='gate'; root.style.maxWidth='720px'; el.replaceChildren(root);
   const say=(t,bad)=>{ const m=root.querySelector('#msg'); if(m) m.innerHTML=t?`<div class="${bad?'err':'hint'}">${esc(t)}</div>`:''; };
   async function load(keepMsg){
@@ -23,6 +25,9 @@ export async function mount(el,{role}={}){
     try{ const c=await api('/rest/v1/push_settings?select=*&id=eq.1'); S.cfg=(c&&c[0])||null; S.sched=!!S.cfg;
       S.log=await api('/rest/v1/push_log?select=profile_id,book_id,chapter_num,attempt,status,created_at&order=id.desc&limit=20'); }catch(e){ S.cfg=null; S.sched=false; S.log=[]; }
     try{ S.books=new Map((await all('/rest/v1/books?select=id,title&order=id.asc')).map(b=>[b.id,b.title])); }catch(e){}
+    try{ S.ssubs=await all('/rest/v1/push_subscriptions?select=id,staff_uid,enabled&staff_uid=not.is.null&order=created_at.desc,id.asc'); S.sok=true; }catch(e){ S.ssubs=[]; S.sok=false; }
+    try{ S.dlog=await api('/rest/v1/push_digest_log?select=staff_uid,day,status,missed_count,created_at&order=id.desc&limit=20'); }catch(e){ S.dlog=null; }
+    try{ const r=await SY.staffAdmin({action:'list'}); S.staff=new Map((r.ok&&r.users||[]).map(u=>[u.id,u.name||u.email||''])); }catch(e){}
     paint();
   }
   const bt=(id)=>S.books.get(id)||id;
@@ -40,6 +45,31 @@ export async function mount(el,{role}={}){
         <div style="display:flex;gap:8px;align-items:center"><input id="cf_qf" type="time" value="${esc(c.quiet_from)}"><span>إلى</span><input id="cf_qt" type="time" value="${esc(c.quiet_to)}"></div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" style="${SB}" data-a="savecfg">💾 حفظ الإعدادات</button><button class="btn sec" style="${SB}" data-a="preview">👁 معاينة (بدون إرسال)</button></div>
       ${S.prev?prevHtml():''}</div>`;
+  }
+  const sname=(id)=>S.staff.get(id)||('حساب '+String(id).slice(0,6));
+  function digestHtml(){
+    if(!S.sched) return '';
+    const c=S.cfg;
+    if(c.digest_enabled===undefined) return '<div class="card2"><b>🤝 ملخص الخدام</b><div class="err">SQL v9.48 لسه ما اتشغّلش: شغّل 20261023_push_digest.sql في Supabase ثم اضغط تحديث.</div></div>';
+    const a=ago(c.digest_last_run_at), stale=!c.digest_last_run_at||(Date.now()-Date.parse(c.digest_last_run_at))>15*60000;
+    const act=S.ssubs.filter(s=>s.enabled), people=new Set(act.map(s=>s.staff_uid)).size;
+    return `<div class="card2"><b>🤝 ملخص الخدام</b>
+      <p class="hint">إشعار واحد لكل خادم في الصباح بعدد مسنديه اللي ما فتحوش الإصحاح (بعد ما تخلص محاولاتهم). من غير أسماء، وبيفتح شاشة «الافتقاد». لو العدد صفر ما بيتبعتش حاجة. الكاهن بدون مخدومين مسندين ما بيستلمش. بيتحسب حتى المخدومين اللي مش مشتركين في الإشعارات.</p>
+      <div class="row" style="border:0;padding:0"><b>الحالة</b><span class="badge ${c.digest_enabled?'on':'off'}">${c.digest_enabled?'شغّال':'مقفول'}</span></div>
+      <div class="stats"><div class="st"><b>${people}</b><small>خادم مشترك</small></div><div class="st"><b>${act.length}</b><small>جهاز فعّال</small></div></div>
+      ${S.sok?'':'<div class="err">جدول الاشتراكات غير متاح.</div>'}
+      <div class="${stale?'warn':'hint'}">${a?`آخر نبض لجدولة الملخص: قبل ${esc(a)}.${stale?' ⚠️ أكتر من ١٥ دقيقة: راجع push-digest في pg_cron.':''}`:'⚠️ جدولة الملخص لسه ما اشتغلتش. شغّل 20261023_push_digest_cron.sql وتأكد من نشر الدالة.'}</div>
+      <div style="margin-top:8px"><button class="btn ${c.digest_enabled?'sec':''}" style="${SB}" data-a="dgtoggle">${c.digest_enabled?'⏸ إيقاف ملخص الخدام':'▶️ تشغيل ملخص الخدام'}</button></div>
+      <div class="fld"><label for="dg_t">ميعاد الملخص (بتوقيت القاهرة)</label><input id="dg_t" type="time" value="${esc(c.digest_time)}"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="${SB}" data-a="dgsave">💾 حفظ الميعاد</button><button class="btn sec" style="${SB}" data-a="dgprev">👁 معاينة (بدون إرسال)</button></div>
+      ${S.dprev?dprevHtml():''}
+      ${S.dlog&&S.dlog.length?`<div class="hint" style="margin-top:10px"><b>آخر الملخصات</b></div>`+S.dlog.map(l=>`<div class="row" style="display:block"><b>${esc(sname(l.staff_uid))}</b> <span class="k">· ${esc(l.day)} · ${Number(l.missed_count)} مخدوم</span><div class="k">${esc(DST[l.status]||l.status)} · ${fmt(l.created_at)}</div></div>`).join(''):''}</div>`;
+  }
+  function dprevHtml(){
+    const r=S.dprev; if(!r.ok) return '';
+    const items=r.items||[];
+    return `<div class="hint" style="margin-top:10px"><b>المعاينة الآن</b> · اليوم ${esc(r.day)} · ميعاد الملخص ${esc(r.at)} ${r.due?'(جه ميعاده)':'(لسه ما جاش ميعاده)'}${r.enabled?'':' · ⚠️ الملخص مقفول حالياً'}</div>`+
+      (items.length?items.map(i=>`<div class="row" style="display:block"><b>${esc(sname(i.staff_uid))}</b><div class="k">${Number(i.missed)>0?`هيتبعت: ${Number(i.missed)} مخدوم (${Number(i.chapters)} إصحاح) على ${Number(i.devices)} جهاز`:'العدد صفر: مش هيتبعت حاجة'}${i.claimed?' · اتحسب النهارده قبل كده':''}</div></div>`).join(''):'<div class="hint">مفيش خدام مشتركين في الملخص.</div>');
   }
   function prevHtml(){
     const r=S.prev; if(!r.ok) return '';
@@ -62,7 +92,7 @@ export async function mount(el,{role}={}){
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn sec" style="${SB}" data-a="ping">🩺 فحص الإرسال</button>
         <button class="btn" style="${SB}" data-a="all"${S.ok&&act.length&&!S.busy?'':' disabled'}>🔔 تجريبي للكل (${act.length})</button><button class="btn sec" style="${SB}" data-a="reload">تحديث</button></div>
       <div class="hint" id="pv">${S.vapid===null?'':(S.vapid?'✅ الدالة منشورة ومفاتيح VAPID مضبوطة.':'⚠️ الدالة منشورة لكن مفاتيح VAPID غير مضبوطة.')+(S.cron===null?'':S.cron?' ✅ CRON_SECRET مضبوط.':' ⚠️ CRON_SECRET غير مضبوط (الجدولة لن تعمل).')}</div></div>
-    ${schedHtml()}${logHtml()}
+    ${schedHtml()}${logHtml()}${digestHtml()}
     ${S.ok?`<div class="card2"><b>الأجهزة المشتركة</b>${S.subs.length?S.subs.map(s=>{ const p=S.names.get(s.profile_id);
       return `<div class="row" style="display:block"><div class="row" style="border:0;padding:0"><b>${esc(p?p.name:'—')}</b><span class="badge ${s.enabled?'on':'off'}">${s.enabled?'فعّال':'معطّل'}</span></div>
         <div class="k">${esc(p?p.grade:'')} · ${esc(dev(s.user_agent))} · اشترك ${fmt(s.created_at)}${s.last_ok_at?' · آخر نجاح '+fmt(s.last_ok_at):''}${s.failed_count?' · فشل متتالي '+Number(s.failed_count):''}</div>
@@ -74,6 +104,15 @@ export async function mount(el,{role}={}){
     if(a==='reload'){ S.prev=null; return load(); }
     if(a==='ping'){ t.disabled=true; const r=await SY.pushSend({action:'ping'}); S.vapid=r.ok?!!r.vapid:null; S.cron=r.ok?!!r.cron:null; paint(); say(r.ok?'':(WHY[r.reason]||WHY.server),!r.ok); return; }
     if(a==='preview'){ t.disabled=true; const r=await SY.pushSend({action:'dispatch_preview'}); S.prev=r; paint(); say(r.ok?'':(WHY[r.reason]||WHY.server),!r.ok); return; }
+    if(a==='dgprev'){ t.disabled=true; const r=await SY.pushSend({action:'digest_preview'}); S.dprev=r; paint(); say(r.ok?'':(WHY[r.reason]||WHY.server),!r.ok); return; }
+    if(a==='dgtoggle'){
+      const on=!S.cfg.digest_enabled; if(on&&!confirm('تشغيل ملخص الخدام؟ كل خادم مشترك هيجيله إشعار واحد يومياً في الميعاد المحدد لو في مخدومين مسندين له ما فتحوش الإصحاح.')) return;
+      t.disabled=true; try{ await patch({digest_enabled:on}); await load(true); say(on?'اتشغّل ملخص الخدام ✅':'اتوقف ملخص الخدام.'); }catch(x){ paint(); say(errMsg(x),true); } return;
+    }
+    if(a==='dgsave'){
+      const v=root.querySelector('#dg_t').value; if(!HHMM.test(v)) return say('اكتب الميعاد بصيغة صحيحة.',true);
+      t.disabled=true; try{ await patch({digest_time:v}); S.dprev=null; await load(true); say('اتحفظ ميعاد الملخص ✅'); }catch(x){ paint(); say(errMsg(x),true); } return;
+    }
     if(a==='toggle'){
       const on=!S.cfg.enabled; if(on&&!confirm('تشغيل الإشعارات التلقائية؟ هتتبعت للمخدومين المشتركين عند ميعاد فتح كل إصحاح من دلوقتي.')) return;
       t.disabled=true; try{ await patch({enabled:on}); await load(true); say(on?'اتشغّلت الإشعارات التلقائية ✅':'اتوقفت الإشعارات التلقائية.'); }catch(x){ paint(); say(errMsg(x),true); } return;
