@@ -78,6 +78,8 @@ function autoHideHeader(){
   const mq=matchMedia('(max-width:900px)');
   let last=0, lock=0, hidden=false;
   const set=h=>{ if(h===hidden) return; hidden=h; document.body.classList.toggle('hdr-hide',h); lock=Date.now()+400; };
+  // (v9.481) حدث lawha:keep-header (من شاشة الامتحان عند «التالي»): يمدّ فترة القفل فيتجاهل سكرول الرجوع للأول ولا يظهر الهيدر
+  addEventListener('lawha:keep-header',e=>{ const ms=Math.min(3000,Math.max(0,Number(e&&e.detail)||800)); lock=Math.max(lock,Date.now()+ms); });
   main.addEventListener('scroll',()=>{
     const y=main.scrollTop;
     if(!mq.matches){ set(false); last=y; return; }
