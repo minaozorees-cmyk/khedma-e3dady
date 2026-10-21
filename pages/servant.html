@@ -1225,6 +1225,7 @@ body .btn-row .btn-manual,body .btn-row .btn-clear-input{flex:1 1 calc(50% - 5px
       <button data-lx="xls">📊 Excel</button>
       <button data-lx="pdf">📥 PDF</button>
       <button data-lx="copy">📋 نسخ</button>
+      <button data-lx="json">🧾 JSON</button>
     </div>
   </div>
 </div>
@@ -2123,6 +2124,8 @@ function buildStudents(stored,allChapters){
     const totalScore=chs.reduce((a,c)=>a+c.score,0);
     const totalMax=chs.reduce((a,c)=>a+c.total,0);
     const totalTime=chs.reduce((a,c)=>a+((!c.time||c.time>=99999)?0:c.time),0);
+    // (v9.481) الوقت «معروف» فقط لو كل إصحاح محسوب له وقت صالح؛ غير كده مجهول (مش صفر) فما يسبقش مخدوم وقته معروف عند التعادل
+    const timeKnown=chs.length>0&&chs.every(c=>c.time>0&&c.time<99999);
     const pct=totalMax>0?Math.round(totalScore/totalMax*100):0;
     const hasManual=chs.some(c=>c.manual);
     // استخدام String(c) للوصول الصحيح لمفاتيح chapters
@@ -2143,18 +2146,22 @@ function buildStudents(stored,allChapters){
       else if(lastPct<prevPct-0.05) trend=-1;
     }
 
-    return{...s,totalScore,totalMax,totalTime,pct,hasManual,doneChapters,isFullCommit,commitPct,trend};
+    return{...s,totalScore,totalMax,totalTime,timeKnown,pct,hasManual,doneChapters,isFullCommit,commitPct,trend};
   });
 }
 
-function sortStudents(students){
-  return [...students].sort((a,b)=>{
-    if(a.isFullCommit!==b.isFullCommit) return a.isFullCommit?-1:1;
-    if(a.doneChapters!==b.doneChapters) return b.doneChapters-a.doneChapters;
-    if(b.totalScore!==a.totalScore) return b.totalScore-a.totalScore;
-    return a.totalTime-b.totalTime;
-  });
+// (v9.481) دالة الترتيب الوحيدة لكل الأماكن (الجدول، النتائج المباشرة، نسخ، JSON، الالتزام):
+// ملتزم بالكل ← عدد الإصحاحات المحلولة ← مجموع الدرجات ← الوقت (المعروف قبل المجهول، والأقل أسرع) ← الاسم
+const rankCollator=new Intl.Collator('ar');
+function rankCompare(a,b){
+  if(a.isFullCommit!==b.isFullCommit) return a.isFullCommit?-1:1;
+  if(a.doneChapters!==b.doneChapters) return b.doneChapters-a.doneChapters;
+  if(a.totalScore!==b.totalScore) return b.totalScore-a.totalScore;
+  if(!!a.timeKnown!==!!b.timeKnown) return a.timeKnown?-1:1;
+  if(a.timeKnown&&a.totalTime!==b.totalTime) return a.totalTime-b.totalTime;
+  return rankCollator.compare(String(a.name||''),String(b.name||''));
 }
+function sortStudents(students){ return [...students].sort(rankCompare); }
 
 function fmt(sec){if(!sec||sec>=99999)return'—';const m=Math.floor(sec/60),s=sec%60;return m===0?`${s}ث`:`${m}د ${s}ث`;}
 function scClass(pct){return pct>=70?'score-high':pct>=50?'score-mid':'score-low';}
@@ -2240,10 +2247,7 @@ function buildPodium(students,allChapters,noTime){
 }
 
 function buildCommitTable(students,allChapters){
-  const sorted=[...students].sort((a,b)=>{
-    if(a.isFullCommit!==b.isFullCommit) return a.isFullCommit?-1:1;
-    return b.doneChapters-a.doneChapters||b.totalScore-a.totalScore;
-  });
+  const sorted=sortStudents(students);   // (v9.481) نفس دالة الترتيب الموحّدة
   let t=`<table><thead><tr><th>الاسم</th><th class="center">الصف</th>`;
   allChapters.forEach(c=>{t+=`<th class="center">إصحاح ${c}</th>`;});
   t+=`<th class="center">الالتزام %</th><th class="center">الالتزام</th></tr></thead><tbody>`;
@@ -2876,15 +2880,6 @@ function liveFilter(rows,f){
   const q=(f.q||'').trim().toLowerCase();
   return rows.filter(r=>(!f.grade||r.grade===f.grade)&&(!f.book||r.book_id===f.book)&&(!f.gender||r.gender===f.gender)&&(!q||String(r.name).toLowerCase().includes(q)));
 }
-function liveRank(rows){
-  const m=new Map();
-  for(const r of rows){
-    let x=m.get(r.profile_id); if(!x){ x={id:r.profile_id,name:r.name,grade:r.grade,n:0,score:0,max:0,attempts:0}; m.set(r.profile_id,x); }
-    x.n++; x.score+=r.first_score; x.max+=r.first_total; x.attempts+=r.attempts;
-  }
-  return [...m.values()].map(x=>({...x,pct:livePct(x.score,x.max)}))
-    .sort((a,b)=>b.pct-a.pct||b.score-a.score||liveCollator.compare(a.name,b.name));
-}
 function liveDetail(rows){
   return [...rows].sort((a,b)=>liveCollator.compare(a.name,b.name)||liveCollator.compare(liveTitle(a),liveTitle(b))||a.chapter_num-b.chapter_num);
 }
@@ -2901,9 +2896,32 @@ function liveXmlText(rows){
   return `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="${liveEsc('نتائج مباشرة')}"><Table>${row(LIVE_HEAD)}${liveDetail(rows).map(r=>row(liveCells(r))).join('')}</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><DisplayRightToLeft/></WorksheetOptions></Worksheet></Workbook>`;
 }
+// (v9.481) ترتيب لكل سفر بدالة الترتيب الموحّدة (rankCompare). raw=true: أسماء بلا تهريب HTML (للتصدير والنسخ).
+function liveRankings(rows){
+  const by=new Map();
+  rows.forEach(r=>{ let x=by.get(r.book_id); if(!x) by.set(r.book_id,x={id:r.book_id,title:liveTitle(r),rows:[]}); x.rows.push(r); });
+  return [...by.values()].sort((a,b)=>liveCollator.compare(a.title,b.title)).map(b=>({bookId:b.id,title:b.title,...liveStudents(b.rows,true)}));
+}
 function liveCopyText(rows){
-  const rk=liveRank(rows);
-  return '🏆 ترتيب المتميزين (أول محاولة)\n'+rk.map((x,i)=>`${i+1}. ${x.name} — ${x.grade} — ${x.score}/${x.max} (${x.pct}%)`).join('\n');
+  const rk=liveRankings(rows), multi=rk.length>1;
+  return '🏆 ترتيب المتميزين (أول محاولة)\n'+rk.map(b=>(multi?`\n📖 ${b.title}\n`:'')+b.students.map((x,i)=>`${i+1}. ${x.name} — ${x.grade.label} — ${x.totalScore}/${x.totalMax} (${x.pct}%)${x.isFullCommit?' ⭐':''}`).join('\n')).join('\n');
+}
+// (v9.481) تصدير JSON للنتائج المباشرة: أسماء ودرجات فقط (بدون تليفونات/إيميلات/أكواد/ولي أمر). timeSec/durationSec = null لو مجهول.
+function liveJsonData(rows,filters,now){
+  const iso=t=>{ const d=t?new Date(t):null; return d&&!isNaN(d.getTime())?d.toISOString():null; };
+  const f=filters||{};
+  return {
+    app:'lawha-results',schema:1,exportedAt:(now||new Date()).toISOString(),
+    filters:{grade:f.grade||'',book:f.book||'',gender:f.gender||'',q:(f.q||'').trim()},
+    counts:{students:new Set(rows.map(r=>r.profile_id)).size,results:rows.length},
+    rankings:liveRankings(rows).map(b=>({bookId:b.bookId,title:b.title,students:b.students.map((s,i)=>({
+      rank:i+1,name:s.name,grade:s.grade.label,
+      commitment:{done:s.doneChapters,total:b.allChapters.length,full:!!s.isFullCommit},
+      score:s.totalScore,max:s.totalMax,pct:s.pct,timeSec:s.timeKnown?s.totalTime:null}))})),
+    results:liveDetail(rows).map(r=>({name:r.name,grade:r.grade,bookId:r.book_id,book:liveTitle(r),chapter:r.chapter_num,
+      score:r.first_score,total:r.first_total,pct:livePct(r.first_score,r.first_total),
+      firstAttemptAt:iso(r.first_attempted_at),attempts:r.attempts,durationSec:r.first_duration_sec>0?r.first_duration_sec:null}))
+  };
 }
 // --- الواجهة ---
 const LIVE={rows:[],at:0,fromCache:true,error:null,truncated:false,view:'rank',busy:false,loaded:false};
@@ -2949,10 +2967,10 @@ function liveBoardScope(rows){
   const title=books.get(id).title;
   return {rows:rows.filter(r=>r.book_id===id),title,note:sel?'':`<div class="live-sum">يوجد أكثر من سفر — معروض أحدثها: <strong>${liveEsc(title)}</strong> (اختر سفراً من القائمة)</div>`};
 }
-function liveStudents(rows){
-  const stored={};
+function liveStudents(rows,raw){
+  const stored={}, E=raw?(v=>String(v==null?'':v)):liveEsc;
   rows.forEach(r=>{
-    const x=stored[r.profile_id]||(stored[r.profile_id]={name:liveEsc(r.name),grade:{key:liveEsc(r.grade),label:liveEsc(r.grade)},chapters:{}}); // تهريب HTML: أسماء من السيرفر
+    const x=stored[r.profile_id]||(stored[r.profile_id]={name:E(r.name),grade:{key:E(r.grade),label:E(r.grade)},chapters:{}}); // تهريب HTML: أسماء من السيرفر (إلا في التصدير raw)
     x.chapters[String(r.chapter_num)]={score:r.first_score,total:r.first_total,time:r.first_duration_sec>0?r.first_duration_sec:0};
   });
   const allChapters=[...new Set(rows.map(r=>Number(r.chapter_num)))].filter(c=>c>0).sort((a,b)=>a-b);
@@ -3012,6 +3030,7 @@ function liveExport(kind){
     (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>showToast('✅ تم النسخ'),()=>{
       const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); showToast('✅ تم النسخ'); }catch(e){ showToast('تعذّر النسخ','error'); } ta.remove(); });
   }
+  else if(kind==='json'){ liveDownload(`نتائج_مباشرة_${liveStamp()}.json`,JSON.stringify(liveJsonData(rows,liveFilters()),null,2),'application/json'); showToast('✅ تم تصدير JSON'); }
   else if(kind==='pdf') livePdf();
 }
 async function livePdf(){
