@@ -61,3 +61,59 @@ export async function sync(profileId,force){
     if(x.ok) await db.setAt(profileId,'pushSyncAt',Date.now());
   }catch(e){}
 }
+
+// ===== (v9.48) إشعارات الخدام: ملخص المخدومين اللي ما فتحوش الإصحاح =====
+// نفس اشتراك الجهاز (endpoint واحد للمتصفح)، لكن مسجّل للخادم نفسه عبر دوال push_*_staff (الهوية من جلسته). حالة التفعيل المحلية لكل خادم (kv: spush:<uid>).
+const sUid=async()=>{ const s=await db.get('staff'); return s&&s.uid?String(s.uid):''; };
+const sFlag=async(uid)=>(await db.getRaw('spush:'+uid))||{};
+const sSet=(uid,v)=>db.setRaw('spush:'+uid,v);
+// s: unsupported | off (غير مجهّز/مفيش جلسة) | denied | idle | on | partial (اشتراك الجهاز موجود لكن غير مسجّل للخادم ده)
+export async function stateStaff(){
+  if(!supported()) return {s:'unsupported'};
+  if(!configured()) return {s:'off'};
+  if(Notification.permission==='denied') return {s:'denied'};
+  const uid=await sUid(); if(!uid) return {s:'off'};
+  const sub=await localSub(), on=!!(await sFlag(uid)).on;
+  if(!sub) return {s:'idle'};
+  if(!sameKey(sub)) return {s:on?'partial':'idle',endpoint:sub.endpoint,stale:true};
+  const srv=await SY.pushStatusStaff(sub.endpoint);
+  if(srv===true) return {s:'on',endpoint:sub.endpoint};
+  if(srv===false) return {s:on?'partial':'idle',endpoint:sub.endpoint};
+  return {s:on?'on':'idle',endpoint:sub.endpoint,unsure:true};
+}
+export async function enableStaff(){   // لازم تُنادى من ضغطة زر (طلب الإذن)
+  if(!supported()||!configured()) return {ok:false,reason:'unsupported'};
+  const uid=await sUid(); if(!uid) return {ok:false,reason:'auth'};
+  const perm=Notification.permission==='granted'?'granted':await Notification.requestPermission();
+  if(perm!=='granted') return {ok:false,reason:perm==='denied'?'denied':'dismissed'};
+  let sub; try{ const r=await reg(); sub=await r.pushManager.getSubscription(); if(sub&&!sameKey(sub)){ try{ await sub.unsubscribe(); }catch(e){} sub=null; } sub=sub||(await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key()})); }
+  catch(e){ return {ok:false,reason:'subscribe'}; }
+  const x=await SY.pushSubscribeStaff(sub); if(!x.ok) return x;
+  await sSet(uid,{on:1,syncAt:Date.now()});
+  return {ok:true,endpoint:sub.endpoint};
+}
+// بنشيل تسجيل الخادم ده بس؛ اشتراك المتصفح نفسه بيفضل (ممكن يكون مستخدم لحساب مخدوم على نفس الجهاز)
+export async function disableStaff(){
+  const uid=await sUid(), sub=await localSub(); if(uid) await sSet(uid,{on:0,syncAt:0});
+  if(!sub) return {ok:true};
+  return SY.pushUnsubscribeStaff(sub.endpoint);
+}
+export async function testStaff(){
+  const sub=await localSub(); if(!sub) return {ok:false,reason:'not_found'};
+  return SY.pushStaffTest(sub.endpoint);
+}
+// عند فتح التطبيق بجلسة طاقم (مرة/يوم): لو الخادم مفعّل الملخص نجدّد تسجيل الجهاز (endpoint اتغيّر / مفتاح VAPID اتدوّر / المتصفح فقد الاشتراك)
+export async function syncStaff(force){
+  try{
+    if(!supported()||!configured()||Notification.permission!=='granted') return;
+    const uid=await sUid(); if(!uid) return;
+    const f=await sFlag(uid); if(!f.on) return;
+    const r=await reg(); let sub=await r.pushManager.getSubscription();
+    const stale=!!sub&&!sameKey(sub);
+    if(!force&&!stale&&Date.now()-(f.syncAt||0)<864e5) return;
+    if(stale){ try{ await sub.unsubscribe(); }catch(e){} sub=null; }
+    if(!sub) sub=await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key()});
+    const x=await SY.pushSubscribeStaff(sub);
+    if(x.ok) await sSet(uid,{on:1,syncAt:Date.now()});
+  }catch(e){}
+}
