@@ -91,6 +91,7 @@ async function route(){
   setNavVisible(true); showVotd(true); paintWho();
   { const src=role==='student'?await activeProfile():await db.get('staff'); const nm=src&&src.name?String(src.name).trim().split(/\s+/)[0]:''; maybeWelcome(role,nm); }
   if(role==='student'){ const ap=await activeProfile(); if(ap) setTimeout(()=>import('./push.js').then(m=>m.sync(ap.id)).catch(()=>{}),3000); if(ap) setTimeout(()=>import('./chapter-alerts.js').then(m=>m.start()).catch(()=>{}),2500); }   // (v9.45) تجديد تسجيل الإشعارات (لو مفعّلها)
+  if(role!=='student') setTimeout(()=>import('./push.js').then(m=>m.syncStaff()).catch(()=>{}),3500);   // (v9.48) نفس الشيء لملخص الخدام
   const v=visible(), id=location.hash.replace('#/','')||land();
   const m=v.find(x=>x.id===id)||v[0], main=$('main');
   main.onclick=main.onchange=main.oninput=null; // لا تبقى معالجات وحدة سابقة
@@ -125,7 +126,7 @@ export async function start(){
     if(s&&!EX.expired(s)&&!confirm('فيه امتحان مفتوح. هيتحفظ ويكمل لما ترجع لحسابك. تبدّل؟')) return;
     logout(); location.reload();
   };
-  if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{ if(e.data&&e.data.type==='push-resub') activeProfile().then(p=>p&&import('./push.js').then(m=>m.sync(p.id,true))).catch(()=>{}); });   // (v9.45)
+  if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{ if(e.data&&e.data.type==='push-resub'){ if(role!=='student') import('./push.js').then(m=>m.syncStaff(true)).catch(()=>{}); else activeProfile().then(p=>p&&import('./push.js').then(m=>m.sync(p.id,true))).catch(()=>{}); } });   // (v9.45، v9.48: الطاقم)
   addEventListener('lawha:role',applyRole); // بعد دخول/خروج أو سحب الدور من الحساب
   addEventListener('lawha:unread',(e)=>setUnread(e.detail));
   addEventListener('lawha:reqcount',(e)=>{ RW.seen(e.detail); setPending(e.detail); }); // اللوحة نفسها حمّلت العدد
