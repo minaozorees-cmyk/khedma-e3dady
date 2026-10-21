@@ -4,10 +4,11 @@
 import {normName,normPhone,normPhoneEG,genCode} from '../../js/auth.js';
 import * as SY from '../../js/sync.js';
 import {esc} from '../../js/consts.js';
+import {copyText} from '../books/codes.js';
 
 const GRADES=['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'], GENDERS=['ولد','بنت'];
 const DAY=864e5, KEEP_DAYS=30, PAGE=20;
-const COLS='id,name,grade,gender,phone,guardian_name,guardian_phone,email,created_at,deleted_at,archived_at';
+const COLS='id,name,grade,gender,phone,guardian_name,guardian_phone,email,code,created_at,deleted_at,archived_at';   // (v9.482) code: المالك بس بيقراه (RLS profiles_owner_all)
 const FIELD_AR={name:'الاسم',grade:'الصف',gender:'الجنس',phone:'التليفون',guardian_name:'ولي الأمر',guardian_phone:'تليفون ولي الأمر',email:'الإيميل',deleted_at:'حالة الحذف',archived_at:'الأرشفة',auth_uid:'ربط الجهاز',code:'كود الاسترجاع'};
 const REQ_TYPE={password_reset:'استرجاع كلمة السر',new_account:'طلب حساب',other:'طلب آخر'}, REQ_ST={pending:'معلّق',approved:'تمت الموافقة',rejected:'مرفوض',done:'تم'};
 const PW_AL='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -42,7 +43,7 @@ export async function mount(el,{role}={}){
   if(role!=='owner'){ el.innerHTML='<div class="ph">هذه الصفحة للمالك فقط.</div>'; return; }
   if(!SY.enabled()){ el.innerHTML='<div class="ph">المزامنة غير مفعّلة (js/config.js فاضي).</div>'; return; }
   let t0='m'; try{ if(sessionStorage.getItem('ownerTab')==='r'){ t0='r'; sessionStorage.removeItem('ownerTab'); } }catch(e){}
-  const S={tab:t0,f:'active',q:'',sel:null,members:[],act:new Map(),sess:[],audit:{page:0,tbl:'',rows:[],more:false},req:{rows:[],open:null,done:null,err:''},pend:0,staff:[],staffOk:false,svs:[],asg:new Map(),asgOk:false,asel:null,acur:new Set(),abusy:false};
+  const S={tab:t0,f:'active',q:'',sel:null,members:[],act:new Map(),sess:[],audit:{page:0,tbl:'',rows:[],more:false},req:{rows:[],open:null,done:null,err:''},pend:0,staff:[],staffOk:false,svs:[],asg:new Map(),asgOk:false,asel:null,acur:new Set(),abusy:false,shown:new Set()};
   const root=document.createElement('div'); root.className='gate'; root.style.maxWidth='720px';
   el.innerHTML=''; el.appendChild(root);
   const $=(s)=>root.querySelector(s);
@@ -151,6 +152,13 @@ export async function mount(el,{role}={}){
       <div class="err" id="eerr"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="${SB}" data-a="save" data-id="${m.id}">حفظ</button><button class="btn sec" style="${SB}" data-a="cancel">إلغاء</button></div></div>`;
   }
+  // (v9.482) كود الاسترجاع: مخفي افتراضياً، «👁 إظهار» لكل مخدوم، و«📋 نسخ» ينسخ رسالة جاهزة للإرسال
+  function codeRow(m){
+    const shown=S.shown.has(m.id), c=m.code?String(m.code):'';
+    if(!c) return `<div class="k" style="margin-top:6px">🔑 كود الاسترجاع: —</div>`;
+    return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"><span>🔑 كود الاسترجاع:</span><span class="code" dir="ltr" style="font-size:1.05rem;letter-spacing:2px;min-width:5.5em;text-align:center">${shown?esc(c):'••••••'}</span>
+      <button class="btn sec" style="${SB}" data-a="showcode" data-id="${m.id}" aria-pressed="${shown}">${shown?'🙈 إخفاء':'👁 إظهار'}</button><button class="btn sec" style="${SB}" data-a="copycode" data-id="${m.id}">📋 نسخ</button></div>`;
+  }
   function paintList(){
     const l=$('#list'); if(!l) return;
     const rows=S.members.filter(matches);
@@ -161,7 +169,7 @@ export async function mount(el,{role}={}){
       const btns=del?`${left>0?`<button class="btn sec" style="${SB}" data-a="restore" data-id="${m.id}">♻️ استرجاع</button>`:''}<button class="x" data-a="purge" data-id="${m.id}">حذف نهائي</button>`
         :`${m.archived_at?`<button class="btn sec" style="${SB}" data-a="unarch" data-id="${m.id}">إلغاء الأرشفة</button>`:`<button class="btn sec" style="${SB}" data-a="edit" data-id="${m.id}">✏️ تعديل</button>`}<button class="btn sec" style="${SB}" data-a="newcode" data-id="${m.id}">🔄 كود جديد</button><button class="x" data-a="del" data-id="${m.id}">🗑 حذف</button>`;
       return `<div class="card2"><div class="row" style="border:0;padding:0"><b>${esc(m.name)}</b><span class="badge ${del?'off':'on'}">${del?'محذوف':m.archived_at?'مؤرشف':'نشط'}</span></div>
-        <div class="k">${info}</div>${svBox(m)}${st}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btns}</div>${S.sel===m.id&&!del?editor(m):''}</div>`;
+        <div class="k">${info}</div>${codeRow(m)}${svBox(m)}${st}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btns}</div>${S.sel===m.id&&!del?editor(m):''}</div>`;
     }).join(''):'<div class="hint">لا توجد نتائج.</div>';
   }
   function dist(title,map,total){
@@ -224,8 +232,8 @@ export async function mount(el,{role}={}){
       if(a==='unarch'){ if(!confirm(`إلغاء أرشفة «${m.name}»؟ هيرجع نشط بصفه الحالي.`)) return; await patch(id,{archived_at:null}); say('تم إلغاء الأرشفة.'); paintClean(); paintList(); return; }
       if(a==='newcode'){
         if(!confirm(`توليد كود استرجاع جديد لـ «${m.name}»؟ الكود القديم هيبطل يشتغل.`)) return;
-        const c=genCode(); await patch(id,{code:c});
-        say(`كود «${m.name}» الجديد: ${c} — ابعته له. (مش هيظهر تاني)`); return;
+        const c=genCode(); await patch(id,{code:c}); S.shown.add(id); paintList();
+        say(`كود «${m.name}» الجديد: ${c} — ابعته له (وهتلاقيه تحت اسمه في القايمة).`); return;
       }
       if(a==='del'){
         if(!confirm(`حذف «${m.name}»؟ يختفي من اللوحات ويمكن استرجاعه خلال ${KEEP_DAYS} يوم.`)) return;
@@ -325,6 +333,9 @@ export async function mount(el,{role}={}){
     else if(a==='svedit'){ if(S.asel===id){ S.asel=null; } else { S.asel=id; S.acur=new Set(S.asg.get(id)||[]); } paintList(); }
     else if(a==='svcancel'){ S.asel=null; paintList(); }
     else if(a==='svsave') svSave(id);
+    else if(a==='showcode'){ S.shown.has(id)?S.shown.delete(id):S.shown.add(id); paintList(); }
+    else if(a==='copycode'){ const m=byId(id); if(!m||!m.code) return;
+      copyText(`كود استرجاع حساب «${m.name}»:\n${m.code}\n(اكتب اسمك الكامل مع الكود لو فتحت حسابك على جهاز جديد)`).then(ok=>{ const o=t.textContent; t.textContent=ok?'✅ اتنسخ':'تعذّر النسخ'; setTimeout(()=>{ if(t.isConnected) t.textContent=o; },1500); }); }
     else if(a==='edit'){ S.sel=id; paintList(); }
     else if(a==='cancel'){ S.sel=null; paintList(); }
     else if(a==='save') save(id);
