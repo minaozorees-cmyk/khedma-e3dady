@@ -222,11 +222,13 @@ export async function mount(el,ctx){
   async function sendNow(btn){
     const box=el.querySelector('#sendst'); btn.disabled=true; const lbl=btn.textContent; btn.textContent='جارٍ التحقق والإرسال…'; box.className='hint'; box.textContent='';
     const [s,u]=await Promise.all([SY.flush(),checkUpdate()]);
+    const dg=await SY.resultDiag();   // (v9.483) تشخيص مؤقت: آخر رفع نتيجة
+    const dgTxt='🧪 '+(dg?`آخر رفع (${dg.build}): محلي=${dg.local==null?'فاضي':dg.local} · اتبعت=${dg.sent==null?'فاضي':dg.sent} · ${dg.err?'فشل: '+dg.err:'HTTP '+dg.http+' · السيرفر رجّع='+(dg.read==null?'فاضي':dg.read)+(dg.retried?' · (اتعاد برقم محاولة جديد)':'')}`:'مفيش سجل رفع على الجهاز ده (لو خلّصت امتحان، يبقى sync.js على الجهاز قديم)');
     const say=({off:'المزامنة غير مفعّلة على هذا التطبيق.',offline:'مفيش نت دلوقتي. نتيجتك محفوظة على جهازك وهتتبعت تلقائياً أول ما النت يرجع.',
       pending:'لسه ما اتبعتتش. هتتحاول تلقائياً.',done:'تم إرسال نتيجتك ✅'})[s.state];
     const up=({found:'فيه تحديث جديد للتطبيق — اضغط "تحديث" في الشريط الذهبي.',none:'التطبيق على آخر نسخة ✅'})[u]||'';
     box.className=(s.state==='done'||s.state==='off')&&!s.dead?'hint':'warn';
-    box.innerHTML=[say,s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',s.err?'السبب (للمراجعة): '+s.err:'',up].filter(Boolean).map(esc).join('<br>');
+    box.innerHTML=[say,s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',s.err?'السبب (للمراجعة): '+s.err:'',up,dgTxt].filter(Boolean).map(esc).join('<br>');
     btn.disabled=false; btn.textContent=lbl;
   }
   el.onclick=async(e)=>{
