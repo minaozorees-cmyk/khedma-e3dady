@@ -1,6 +1,6 @@
 // الافتقاد (v9.6): مين محتاج اتصال؟ (مش داخل التطبيق / غياب / مش بيحل امتحانات) + واتساب + تسجيل "تم الافتقاد".
 // (v9.48) + «📖 ما فتحوش الإصحاح»: مخدوميك المسندين لك اللي ما فتحوا الإصحاح (نفس العدّ بتاع إشعار الملخص). الإشعار بيفتح الشاشة دي.
-import {api,errMsg,fmtD,dayDiff,SB,waLink,telLink} from '../../js/sapi.js';
+import {api,errMsg,fmtD,dayDiff,SB,waLink,telLink,guardianBox,loadGTpl,saveGTpl,GDEF_MSG} from '../../js/sapi.js';
 import {esc} from '../../js/consts.js';
 import * as SY from '../../js/sync.js';
 const GRADES=['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'];
@@ -11,6 +11,7 @@ const DEF_MSG='سلام ونعمة يا {الاسم} ❤️ افتقدناك ف�
 export async function mount(el){
   const S={rows:[],days:14,grade:'',why:'any',hideDone:true,mh:24,miss:null,missErr:''};
   let tpl; try{ tpl=localStorage.getItem('fuMsg')||DEF_MSG; }catch(e){ tpl=DEF_MSG; }
+  let gtpl=loadGTpl('fuMsgG');   // (v9.487) رسالة ولي الأمر المستقلة
   const root=document.createElement('div'); root.className='gate'; root.style.maxWidth='720px'; el.innerHTML=''; el.appendChild(root);
   const $=(s)=>root.querySelector(s), say=(t,bad)=>{ const m=$('#msg'); if(m) m.innerHTML=t?`<div class="${bad?'err':'hint'}">${esc(t)}</div>`:''; };
   root.innerHTML=`<div id="miss"></div><div class="card2">
@@ -18,7 +19,8 @@ export async function mount(el){
     <div class="fld"><label for="fw">السبب</label><select id="fw"><option value="any">أي سبب (غياب أو مش بيدخل)</option><option value="app">مش بيدخل التطبيق</option><option value="abs">غياب (مرتين+ آخر ٣٠ يوم)</option><option value="exam">مش بيحل امتحانات</option></select></div>
     <div class="fld"><label for="fd">المدة</label><select id="fd"><option value="7">٧ أيام</option><option value="14" selected>١٤ يوم</option><option value="30">٣٠ يوم</option></select></div>
     <label class="chk"><input type="checkbox" id="fh" checked> إخفاء اللي اتفتقد آخر ٧ أيام</label>
-    <div class="fld"><label for="ft">نص رسالة الواتساب <small>({الاسم} = الاسم الأول)</small></label><input id="ft" value="${esc(tpl)}" maxlength="300"></div></div>
+    <div class="fld"><label for="ft">نص رسالة الواتساب <small>({الاسم} = الاسم الأول)</small></label><input id="ft" value="${esc(tpl)}" maxlength="300"></div>
+    <div class="fld"><label for="ftg">نص رسالة واتساب لولي الأمر <small>({الاسم} = الاسم الأول للمخدوم، {ولي_الأمر} = الاسم الأول لولي الأمر)</small></label><input id="ftg" value="${esc(gtpl)}" maxlength="300"></div></div>
     <div id="msg"></div><div id="list"></div><button class="btn sec" data-a="reload">تحديث</button>`;
   async function loadMissed(){
     const r=await SY.pushMyMissed(S.mh);
@@ -47,7 +49,7 @@ export async function mount(el){
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
             ${w1?`<a class="btn sec" style="${SB}" target="_blank" rel="noopener" href="${w1}">📱 واتساب</a>`:''}
             ${r&&telLink(r.phone)?`<a class="btn sec" style="${SB}" href="${telLink(r.phone)}">📞 اتصال</a>`:''}
-            ${r?`<button class="btn" style="${SB}" data-a="done" data-id="${esc(profile_id)}">✓ تم الافتقاد</button>`:''}</div></div>`; }).join('')
+            ${r?`<button class="btn" style="${SB}" data-a="done" data-id="${esc(profile_id)}">✓ تم الافتقاد</button>`:''}</div>${r?guardianBox({phone:r.guardian_phone,name:r.guardian_name,student:r.name,tpl:gtpl}):''}</div>`; }).join('')
       :`<div class="hint">✅ مفيش مخدومين مسندين لك ما فتحوش إصحاحات ${HRS.find(x=>x[0]===S.mh)[1]}.</div>`)+`</div>`;
   }
   function calc(r){
@@ -64,15 +66,14 @@ export async function mount(el){
     const rows=S.rows.filter(r=>(!S.grade||r.grade===S.grade)&&!(S.hideDone&&r.last_followup&&dayDiff(r.last_followup)<7))
       .map(r=>({r,...calc(r)})).filter(x=>x.hit).sort((a,b)=>b.score-a.score);
     $('#list').innerHTML=`<div class="hint">${rows.length} مخدوم محتاج افتقاد</div>`+rows.map(({r,why})=>{
-      const msg=tpl.replace('{الاسم}',r.name.split(' ')[0]), w1=waLink(r.phone,msg), w2=waLink(r.guardian_phone,msg);
+      const msg=tpl.replace('{الاسم}',r.name.split(' ')[0]), w1=waLink(r.phone,msg);
       return `<div class="card2"><div class="row" style="border:0;padding:0"><b>${esc(r.name)}</b><small>${esc(r.grade)}</small></div>
         <div class="k">${esc(why.join(' · '))}</div>
         <div class="k">آخر حضور: ${r.last_present?fmtD(r.last_present):'—'} · آخر افتقاد: ${r.last_followup?fmtD(r.last_followup):'—'}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
           ${w1?`<a class="btn sec" style="${SB}" target="_blank" rel="noopener" href="${w1}">📱 واتساب</a>`:''}
-          ${r.guardian_phone&&w2?`<a class="btn sec" style="${SB}" target="_blank" rel="noopener" href="${w2}">👪 ولي الأمر</a>`:''}
           ${telLink(r.phone)?`<a class="btn sec" style="${SB}" href="${telLink(r.phone)}">📞 اتصال</a>`:''}
-          <button class="btn" style="${SB}" data-a="done" data-id="${r.id}">✓ تم الافتقاد</button></div></div>`; }).join('');
+          <button class="btn" style="${SB}" data-a="done" data-id="${r.id}">✓ تم الافتقاد</button></div>${guardianBox({phone:r.guardian_phone,name:r.guardian_name,student:r.name,tpl:gtpl})}</div>`; }).join('');
   }
   root.addEventListener('change',(e)=>{
     const t=e.target;
@@ -80,7 +81,9 @@ export async function mount(el){
     if(t.id==='fg') S.grade=t.value; else if(t.id==='fw') S.why=t.value; else if(t.id==='fd') S.days=Number(t.value); else if(t.id==='fh') S.hideDone=t.checked; else return;
     paint();
   });
-  root.addEventListener('input',(e)=>{ if(e.target.id==='ft'){ tpl=e.target.value||DEF_MSG; try{ localStorage.setItem('fuMsg',tpl); }catch(x){} paint(); } });
+  root.addEventListener('input',(e)=>{
+    if(e.target.id==='ftg'){ gtpl=e.target.value||GDEF_MSG; saveGTpl('fuMsgG',gtpl); paint(); paintMissed(); return; }
+    if(e.target.id==='ft'){ tpl=e.target.value||DEF_MSG; try{ localStorage.setItem('fuMsg',tpl); }catch(x){} paint(); } });
   root.addEventListener('click',async(e)=>{
     const t=e.target.closest('[data-a]'); if(!t||t.disabled) return;
     if(t.dataset.a==='reload'){ load(); return; }   // (يعيد تحميل «ما فتحوش الإصحاح» كمان)
