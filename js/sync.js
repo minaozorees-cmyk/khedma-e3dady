@@ -49,7 +49,7 @@ export const finishDiag=(d)=>db.set('finishDiag',d).catch(()=>{});   // (v9.484)
 export const getFinishDiag=()=>db.get('finishDiag').catch(()=>null);
 async function diagResult(a,row,info){
   try{
-    const d={at:Date.now(),build:'v9.485',attemptId:a.id,bid:row.book_id,num:row.chapter_num,ageMin:a.at?Math.round((Date.now()-a.at)/60000):null,local:a.durationSec==null?null:a.durationSec,sent:row.duration_sec==null?null:row.duration_sec,http:info.http,attemptNo:row.attempt_no,retried:!!info.retried,read:'؟'};
+    const d={at:Date.now(),build:'v9.486',attemptId:a.id,bid:row.book_id,num:row.chapter_num,ageMin:a.at?Math.round((Date.now()-a.at)/60000):null,local:a.durationSec==null?null:a.durationSec,sent:row.duration_sec==null?null:row.duration_sec,http:info.http,attemptNo:row.attempt_no,retried:!!info.retried,read:'؟'};
     if(info.err){ d.err=info.err; }
     else{
       try{ const r=await api(`/rest/v1/results?id=eq.${encodeURIComponent(a.id)}&select=duration_sec`);
