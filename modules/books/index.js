@@ -102,7 +102,7 @@ export async function mount(el,ctx){
     const durSec=tm?T.toDuration(tm.el):dur(st.startedAt,Date.now());   // (v9.481) وقت الأسئلة الفعلي
     const att=await R.record({bookId:st.bid,chapterNum:st.num,score:r.score,total:r.total,source,answered:answeredCount(st.qs,st.ans),durationSec:durSec});
     const fixed=await ensureDuration(att,durSec);   // (v9.485) لو results.js على الجهاز قديم ومابيحفظش الوقت: نصلّحه فوراً قبل الرفع
-    SY.finishDiag({at:Date.now(),build:'v9.485',bid:st.bid,num:st.num,att:att.attemptNo,hasTimer:!!tm,el:elBefore,dur:att.durationSec==null?null:att.durationSec,fix:fixed,src:source});   // (v9.484) تشخيص مؤقت: ما حسبه finish()
+    SY.finishDiag({at:Date.now(),build:'v9.486',bid:st.bid,num:st.num,att:att.attemptNo,hasTimer:!!tm,el:elBefore,dur:att.durationSec==null?null:att.durationSec,fix:fixed,src:source});   // (v9.484) تشخيص مؤقت: ما حسبه finish()
     await S.clear(); sess=null;
     st.res=r; st.att=att; st.sum=R.summary(await R.all(),st.bid,st.num); st.s='result';
   }
@@ -183,7 +183,8 @@ export async function mount(el,ctx){
         <div class="hint">⏱ وقت الحل: ${T.text(st.att.durationSec)}</div>
         <div class="hint">${st.att.attemptNo===1?'هذه المحاولة هي المعتمدة':'هذه محاولة للتدريب، والمعتمدة هي الأولى'}</div></div>
         <div class="card2"><b>مراجعة الإجابات</b>${rev}</div>
-        <div class="card2"><button class="btn" data-a="send">📤 إرسال النتيجة</button><div class="hint" id="sendst">بتتبعت تلقائياً. الزر للتأكيد والتحقق من وجود تحديث للتطبيق.</div></div>
+        <div class="card2"><button class="btn" data-a="send">📤 إرسال النتيجة</button><div class="hint" id="sendst">بتتبعت تلقائياً. الزر للتأكيد والتحقق من وجود تحديث للتطبيق.</div>
+          <button class="btn sec" data-a="diag" aria-expanded="false" style="font-size:.72rem;padding:.2rem .6rem;margin-top:.6rem;opacity:.75">📊 تفاصيل الرفع (للدعم)</button><div id="diagbox" hidden style="margin-top:.5rem"></div></div>
         <button class="btn" data-a="start">إعادة الامتحان</button>${back('toChap','الإصحاحات')}</div>`;
     }
   };
@@ -230,25 +231,49 @@ export async function mount(el,ctx){
     if(gated&&st.s==='books'){ const w=AC.nextChangeIn(); if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&st.s==='books') render(); },Math.min(w+1000,2147e6)); }   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
   }
 
+  // (v9.486) «📊 تفاصيل الرفع (للدعم)»: مخفية افتراضياً؛ بعد الضغط تظهر ٣ أسطر + زر «📋 نسخ التفاصيل» (جوه الصندوق بس)
+  let diagCopy='';
+  const dv=(x)=>x==null?'فاضي':x;
+  async function diagLines(){
+    const [dg,fd,mine]=await Promise.all([SY.resultDiag(),SY.getFinishDiag(),R.all().catch(()=>[])]);
+    return [
+      'آخر إنهاء: '+(fd?`إصحاح ${fd.num} محاولة ${fd.att} · عدّاد=${fd.hasTimer?dv(fd.el):'مفيش'} · اتسجّل=${dv(fd.dur)} · results.js=${fd.fix?'قديم (اتصلّح)':'سليم'} · ${fd.src} (${fd.build})`:'مفيش سجل'),
+      'آخر محاولات على الجهاز: '+([...mine].sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,4).map(a=>`إ${a.chapterNum}/م${a.attemptNo}=${dv(a.durationSec)}`).join(' | ')||'—'),
+      'آخر رفع: '+(dg?`إصحاح ${dv(dg.num)} م${dv(dg.attemptNo)} (من ${dv(dg.ageMin)} د) · محلي=${dv(dg.local)} · اتبعت=${dv(dg.sent)} · ${dg.err?'فشل: '+dg.err:'HTTP '+dg.http+' · السيرفر رجّع='+dv(dg.read)} (${dg.build})`:'مفيش سجل')
+    ];
+  }
+  async function refreshDiag(){
+    const box=el.querySelector('#diagbox'); if(!box||box.hidden) return;
+    const lines=await diagLines();
+    diagCopy='تفاصيل الرفع — '+new Date().toLocaleString('ar-EG')+'\n'+lines.join('\n');
+    box.innerHTML='<div class="hint" style="line-height:1.9;user-select:text">'+lines.map(esc).join('<br>')+'</div><button class="btn sec" data-a="copydiag" style="font-size:.75rem;padding:.25rem .7rem;margin-top:.4rem">📋 نسخ التفاصيل</button>';
+  }
+  async function copyTxt(t){
+    try{ await navigator.clipboard.writeText(t); return true; }catch(e){}
+    try{ const ta=document.createElement('textarea'); ta.value=t; ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); ta.remove(); return ok; }catch(e){ return false; }
+  }
   // (v9.3) زر "إرسال": يرسل النتائج المعلّقة الآن + يفحص التحديث. لا يعيد رسم الشاشة (عشان الرسالة تفضل ظاهرة).
   async function sendNow(btn){
     const box=el.querySelector('#sendst'); btn.disabled=true; const lbl=btn.textContent; btn.textContent='جارٍ التحقق والإرسال…'; box.className='hint'; box.textContent='';
     const [s,u]=await Promise.all([SY.flush(),checkUpdate()]);
-    const [dg,fd,mine]=await Promise.all([SY.resultDiag(),SY.getFinishDiag(),R.all().catch(()=>[])]);   // (v9.484) تشخيص مؤقت
-    const v=(x)=>x==null?'فاضي':x;
-    const fdTxt='🧪 آخر إنهاء ('+(fd?`${fd.build}): إصحاح ${fd.num} محاولة ${fd.att} · عدّاد=${fd.hasTimer?v(fd.el):'مفيش'} · اتسجّل=${v(fd.dur)} · results.js=${fd.fix?'قديم (اتصلّح)':'سليم'} · ${fd.src}`:'مفيش سجل: finish() على الجهاز قديم)');
-    const loc='🧪 آخر محاولات على الجهاز: '+([...mine].sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,4).map(a=>`إ${a.chapterNum}/م${a.attemptNo}=${v(a.durationSec)}`).join(' | ')||'—');
-    const dgTxt='🧪 '+(dg?`آخر رفع (${dg.build}) لإصحاح ${v(dg.num)} م${v(dg.attemptNo)} (من ${v(dg.ageMin)} د): محلي=${v(dg.local)} · اتبعت=${v(dg.sent)} · ${dg.err?'فشل: '+dg.err:'HTTP '+dg.http+' · السيرفر رجّع='+v(dg.read)}`:'مفيش سجل رفع على الجهاز ده (sync.js قديم؟)');
+    refreshDiag();   // لو صندوق التفاصيل مفتوح نحدّثه
     const say=({off:'المزامنة غير مفعّلة على هذا التطبيق.',offline:'مفيش نت دلوقتي. نتيجتك محفوظة على جهازك وهتتبعت تلقائياً أول ما النت يرجع.',
       pending:'لسه ما اتبعتتش. هتتحاول تلقائياً.',done:'تم إرسال نتيجتك ✅'})[s.state];
     const up=({found:'فيه تحديث جديد للتطبيق — اضغط "تحديث" في الشريط الذهبي.',none:'التطبيق على آخر نسخة ✅'})[u]||'';
     box.className=(s.state==='done'||s.state==='off')&&!s.dead?'hint':'warn';
-    box.innerHTML=[say,s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',s.err?'السبب (للمراجعة): '+s.err:'',up,fdTxt,loc,dgTxt].filter(Boolean).map(esc).join('<br>');
+    box.innerHTML=[say,s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',s.err?'السبب (للمراجعة): '+s.err:'',up].filter(Boolean).map(esc).join('<br>');
     btn.disabled=false; btn.textContent=lbl;
   }
   el.onclick=async(e)=>{
     const t=e.target.closest('[data-a]'); if(!t||t.disabled) return; const a=t.dataset.a, k=Number(t.dataset.k);
     if(a==='send'){ await sendNow(t); return; }
+    if(a==='diag'){   // بدون إعادة رسم
+      const box=el.querySelector('#diagbox'); if(!box) return;
+      if(box.hidden){ box.hidden=false; box.textContent='جارٍ التحميل…'; await refreshDiag(); t.setAttribute('aria-expanded','true'); t.textContent='🙈 إخفاء تفاصيل الرفع'; }
+      else{ box.hidden=true; t.setAttribute('aria-expanded','false'); t.textContent='📊 تفاصيل الرفع (للدعم)'; }
+      return;
+    }
+    if(a==='copydiag'){ const ok=await copyTxt(diagCopy), o=t.textContent; t.textContent=ok?'✅ اتنسخ':'تعذّر النسخ'; setTimeout(()=>{ if(t.isConnected) t.textContent=o; },1500); return; }
     if(a==='zin'||a==='zout'){   // (v9.39) بدون إعادة رسم (عشان عدّاد القراءة والإجابات ما يتأثروش)
       zoom=Math.min(ZMAX,Math.max(ZMIN,zoom+(a==='zin'?ZSTEP:-ZSTEP))); try{ localStorage.setItem(ZK,String(zoom)); }catch(x){}
       const zm=el.querySelector('.zm'); if(zm) zm.style.setProperty('--qz',String(zoom/100));
