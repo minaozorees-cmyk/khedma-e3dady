@@ -5,11 +5,11 @@ import * as A from './auth.js';
 // v6: نتائج الخادم/المالك التجريبية تُسجَّل تحت هوية 'staff' محلية فقط: لا تختلط بملف مخدوم على نفس الجهاز ولا تُرفع
 const identity=async()=>{ if((await A.getRole())!=='student') return {p:null,pid:'staff',student:false}; const p=await A.activeProfile(); return {p,pid:p?p.id:'local',student:true}; };
 const mine=(a,pid)=>!a.profileId||a.profileId===pid||a.profileId==='local'; // محاولات v4 بلا profileId تُعتبر لصاحب الجهاز
-export async function record({bookId,chapterNum,score,total,source='finish',answered=null}){
+export async function record({bookId,chapterNum,score,total,source='finish',answered=null,durationSec=null}){
   const R=(await db.get('results'))||{attempts:[]};
   const {p,pid,student}=await identity();
   const attemptNo=R.attempts.filter(x=>x.bookId===bookId&&x.chapterNum===chapterNum&&mine(x,pid)).length+1;
-  const a={id:crypto.randomUUID(),profileId:pid,bookId,chapterNum,attemptNo,score,total,source,answered,at:Date.now()};
+  const a={id:crypto.randomUUID(),profileId:pid,bookId,chapterNum,attemptNo,score,total,source,answered,durationSec,at:Date.now()};
   R.attempts.push(a); await db.set('results',R);
   if(student&&p) await db.queue({type:'result.create',attemptId:a.id,profileId:p.id,attemptNo});
   return a;
