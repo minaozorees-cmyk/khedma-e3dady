@@ -3,12 +3,14 @@
 import {api,errMsg,fmtD,dayDiff,SB,waLink,telLink,guardianBox,loadGTpl,saveGTpl,GDEF_MSG} from '../../js/sapi.js';
 import {esc} from '../../js/consts.js';
 import * as SY from '../../js/sync.js';
+import {getRole} from '../../js/auth.js';
 const GRADES=['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'];
 const HRS=[[24,'آخر ٢٤ ساعة'],[72,'آخر ٣ أيام'],[168,'آخر أسبوع']];
 const nAr=(n)=>new Intl.NumberFormat('ar-EG').format(Number(n)||0);
 const MISS_WHY={nofn:'دالة push-send محتاجة نشر النسخة الجديدة (v9.48).',auth:'الجلسة انتهت. سجّل الدخول من جديد.',offline:'مفيش اتصال بالنت.',forbidden:'غير مسموح.',server:'تعذّر التحميل. جرّب بعد شوية.',failed:'تعذّر التحميل.',bad:'طلب غير صالح.'};
 const DEF_MSG='سلام ونعمة يا {الاسم} ❤️ افتقدناك في خدمة إعدادي. عامل إيه؟ ربنا يبارك حياتك.';
 export async function mount(el){
+  const role=await getRole().catch(()=>'servant'), noMiss=(role==='owner'||role==='priest');   // (v9.488) كارت «ما فتحوش» للمسندين للخادم بس؛ المالك والكاهن بيشوفوا الكل في القايمة
   const S={rows:[],days:14,grade:'',why:'any',hideDone:true,mh:24,miss:null,missErr:''};
   let tpl; try{ tpl=localStorage.getItem('fuMsg')||DEF_MSG; }catch(e){ tpl=DEF_MSG; }
   let gtpl=loadGTpl('fuMsgG');   // (v9.487) رسالة ولي الأمر المستقلة
@@ -23,6 +25,7 @@ export async function mount(el){
     <div class="fld"><label for="ftg">نص رسالة واتساب لولي الأمر <small>({الاسم} = الاسم الأول للمخدوم، {ولي_الأمر} = الاسم الأول لولي الأمر)</small></label><input id="ftg" value="${esc(gtpl)}" maxlength="300"></div></div>
     <div id="msg"></div><div id="list"></div><button class="btn sec" data-a="reload">تحديث</button>`;
   async function loadMissed(){
+    if(noMiss) return;
     const r=await SY.pushMyMissed(S.mh);
     S.miss=r.ok?r:null; S.missErr=r.ok?'':(r.reason||'server'); paintMissed();
   }
@@ -35,6 +38,7 @@ export async function mount(el){
   // (v9.48) «ما فتحوش الإصحاح»: الأسماء من followup_staff (نفس صلاحيات الشاشة)، والعدّ من السيرفر (المسندين لك بس)
   function paintMissed(){
     const box=$('#miss'); if(!box) return;
+    if(noMiss){ box.innerHTML=''; return; }
     const sel=`<select id="mh" style="width:auto">${HRS.map(([h,l])=>`<option value="${h}"${S.mh===h?' selected':''}>${l}</option>`).join('')}</select>`;
     const head=`<div class="row" style="border:0;padding:0"><b>📖 ما فتحوش الإصحاح</b>${sel}</div>`;
     if(!S.miss){ box.innerHTML=S.missErr?`<div class="card2">${head}<div class="hint">${esc(MISS_WHY[S.missErr]||MISS_WHY.server)}</div></div>`:''; return; }
