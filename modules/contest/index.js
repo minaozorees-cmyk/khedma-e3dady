@@ -1,6 +1,6 @@
 // متابعة المسابقة (v9.36): مين حلّ ومين لم يحلّ في مدة تختارها (+ سفر/إصحاح/صف/جنس) مع اتصال وواتساب للي لم يحلّوا.
 // البيانات من results/profiles/followup_staff، والنطاق (المسندين للخادم) يفرضه RLS في Supabase.
-import {api,all,errMsg,fmtD,SB,waLink,telLink,today} from '../../js/sapi.js';
+import {api,all,errMsg,fmtD,SB,waLink,telLink,today,guardianBox,validEG,loadGTpl,saveGTpl,GDEF_MSG} from '../../js/sapi.js';
 import {esc} from '../../js/consts.js';
 const GRADES=['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'];
 const DEF_MSG='سلام ونعمة يا {الاسم} ❤️ فاكّرك بالمسابقة، ربنا يبارك حياتك ويفتح قلبك لكلمته.';
@@ -11,6 +11,7 @@ export async function mount(el,{role}={}){
   if(!['servant','priest','owner'].includes(role)){ el.innerHTML='<div class="ph">الصفحة غير متاحة.</div>'; return; }
   const S={preset:'7',from:'',to:'',book:'',chap:'',grade:'',gender:'',members:[],books:[],chapters:[],results:[],loaded:false};
   let tpl; try{ tpl=localStorage.getItem('ctMsg')||DEF_MSG; }catch(e){ tpl=DEF_MSG; }
+  let gtpl=loadGTpl('ctMsgG');   // (v9.487) رسالة ولي الأمر المستقلة
   const root=document.createElement('div'); root.className='gate'; root.style.maxWidth='760px'; el.replaceChildren(root);
   const $=(s)=>root.querySelector(s), say=(t,bad)=>{ const m=$('#msg'); if(m) m.innerHTML=t?`<div class="${bad?'err':'hint'}">${esc(t)}</div>`:''; };
   function range(){
@@ -31,6 +32,7 @@ export async function mount(el,{role}={}){
       <div style="display:flex;gap:8px"><div class="fld" style="flex:1"><label for="cg">الصف</label><select id="cg"><option value="">كل الصفوف</option>${GRADES.map(g=>`<option${S.grade===g?' selected':''}>${g}</option>`).join('')}</select></div>
       <div class="fld" style="flex:1"><label for="cx">الجنس</label><select id="cx"><option value="">ولد وبنت</option><option value="ولد"${S.gender==='ولد'?' selected':''}>ولد</option><option value="بنت"${S.gender==='بنت'?' selected':''}>بنت</option></select></div></div>
       <div class="fld"><label for="cm">نص رسالة الواتساب <small>({الاسم} = الاسم الأول)</small></label><input id="cm" maxlength="300" value="${esc(tpl)}"></div>
+      <div class="fld"><label for="cmg">نص رسالة واتساب لولي الأمر <small>({الاسم} = الاسم الأول للمخدوم، {ولي_الأمر} = الاسم الأول لولي الأمر)</small></label><input id="cmg" maxlength="300" value="${esc(gtpl)}"></div>
       <button class="btn" data-a="go">عرض</button></div>
       <div id="msg"></div><div id="out"></div>`;
   }
@@ -39,10 +41,11 @@ export async function mount(el,{role}={}){
     try{
       const [m,c,b]=await Promise.all([
         all('/rest/v1/profiles?select=id,name,grade,gender&deleted_at=is.null&archived_at=is.null&order=name.asc'),
-        all('/rest/v1/followup_staff?select=id,phone,guardian_phone&order=id.asc'),
+        // (v9.487) guardian_name مع guardian_phone؛ لو الـview على السيرفر ما فيهوش العمود نرجع للاستعلام القديم بدل ما الصفحة تقع
+        all('/rest/v1/followup_staff?select=id,phone,guardian_phone,guardian_name&order=id.asc').catch(()=>all('/rest/v1/followup_staff?select=id,phone,guardian_phone&order=id.asc')),
         api('/rest/v1/books?select=id,title&order=title.asc&limit=200')
       ]);
-      const ph=new Map(c.map(x=>[x.id,x])); S.members=m.map(p=>({...p,phone:(ph.get(p.id)||{}).phone,gp:(ph.get(p.id)||{}).guardian_phone})); S.books=b||[];
+      const ph=new Map(c.map(x=>[x.id,x])); S.members=m.map(p=>({...p,phone:(ph.get(p.id)||{}).phone,gp:(ph.get(p.id)||{}).guardian_phone,gn:(ph.get(p.id)||{}).guardian_name})); S.books=b||[];
     }catch(e){ root.innerHTML=`<div class="card2"><div class="err">${esc(errMsg(e))}</div><button class="btn sec" data-a="boot">إعادة المحاولة</button></div>`; return; }
     shell();
   }
@@ -78,9 +81,9 @@ export async function mount(el,{role}={}){
       const arr=[...best.values()], last=rs[rs.length-1];
       const info=S.chap&&arr.length===1?`${arr[0].score} / ${arr[0].total}`:`${arr.length} إصحاح · متوسط ${Math.round(arr.reduce((n,r)=>n+100*r.score/Math.max(1,r.total),0)/arr.length)}%`;
       return `<div class="row"><span>${esc(p.name)} <small class="k">· ${esc(p.grade)}</small><br><small class="k">آخر محاولة ${fmtD(last.attempted_at)}</small></span><b>${info}</b></div>`; };
-    const miss=(p)=>{ const msg=tpl.replace('{الاسم}',p.name.split(' ')[0]), w1=waLink(p.phone,msg), w2=waLink(p.gp,msg);
+    const miss=(p)=>{ const msg=tpl.replace('{الاسم}',p.name.split(' ')[0]), w1=waLink(p.phone,msg), gOk=validEG(p.gp);
       return `<div class="card2"><div class="row" style="border:0;padding:0"><b>${esc(p.name)}</b><small>${esc(p.grade)}</small></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-        ${w1?`<a class="btn sec" style="${SB}" target="_blank" rel="noopener" href="${w1}">📱 واتساب</a>`:''}${w2?`<a class="btn sec" style="${SB}" target="_blank" rel="noopener" href="${w2}">👪 ولي الأمر</a>`:''}${telLink(p.phone)?`<a class="btn sec" style="${SB}" href="${telLink(p.phone)}">📞 اتصال</a>`:''}${(!w1&&!w2&&!telLink(p.phone))?'<small class="k">لا يوجد رقم مسجّل</small>':''}</div></div>`; };
+        ${w1?`<a class="btn sec" style="${SB}" target="_blank" rel="noopener" href="${w1}">📱 واتساب</a>`:''}${telLink(p.phone)?`<a class="btn sec" style="${SB}" href="${telLink(p.phone)}">📞 اتصال</a>`:''}${(!w1&&!gOk&&!telLink(p.phone))?'<small class="k">لا يوجد رقم مسجّل</small>':''}</div>${guardianBox({phone:p.gp,name:p.gn,student:p.name,tpl:gtpl})}</div>`; };
     $('#out').innerHTML=`<div class="card2" style="background:linear-gradient(135deg,rgba(201,168,76,.16),rgba(201,168,76,.03))"><div class="stats">
         <div class="st"><b>${solved.length} / ${mem.length}</b><small>حلّوا (${pct}٪)</small></div><div class="st"><b>${not.length}</b><small>لم يحلّوا</small></div></div>
       <div class="hint">${esc(what)}${esc(ch)} · من ${fmtD(f+'T12:00:00')} إلى ${fmtD(t+'T12:00:00')}</div></div>
@@ -97,6 +100,7 @@ export async function mount(el,{role}={}){
     else if(id==='cc') S.chap=t.value;
     else if(id==='cg') S.grade=t.value; else if(id==='cx') S.gender=t.value;
     else if(id==='cm'){ tpl=t.value||DEF_MSG; try{ localStorage.setItem('ctMsg',tpl); }catch(x){} }
+    else if(id==='cmg'){ gtpl=t.value||GDEF_MSG; saveGTpl('ctMsgG',gtpl); }
   });
   root.addEventListener('click',(e)=>{ const t=e.target.closest('[data-a]'); if(!t) return; if(t.dataset.a==='go') run(); else if(t.dataset.a==='boot') boot(); });
   boot();
