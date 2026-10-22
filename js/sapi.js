@@ -1,6 +1,7 @@
 // (v9.6) مساعدات مشتركة لوحدات الطاقم (REST بجلسة الطاقم). الحماية الفعلية = RLS في السيرفر.
 import * as SY from './sync.js';
-import {normPhone} from './auth.js';
+import {normPhone,normPhoneEG} from './auth.js';
+import {esc} from './consts.js';
 export const SB='width:auto;min-height:36px;margin:0;padding:6px 14px;font-size:.85rem';
 export const fmt=(t)=>t?new Date(t).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'}):'—';
 export const fmtD=(t)=>t?new Date(t).toLocaleDateString('ar-EG',{dateStyle:'medium'}):'—';
@@ -26,3 +27,18 @@ export function errMsg(e){
 // رابط واتساب من رقم مصري (01…) → wa.me/20…
 export const waLink=(phone,text)=>{ const n=normPhone(phone||'').replace(/^\+?20/,'').replace(/^0/,''); return n?`https://wa.me/20${n}?text=${encodeURIComponent(text||'')}`:''; };
 export const telLink=(phone)=>{ const n=normPhone(phone||''); return n?'tel:'+n:''; };
+
+// (v9.487) أزرار ولي الأمر: «📞 اتصال بولي الأمر» + «👪 واتساب ولي الأمر». تظهر فقط لو الرقم صالح (01[0125]xxxxxxxx بعد التوحيد).
+// رسالة واتساب مستقلة لولي الأمر: {الاسم} = الاسم الأول للمخدوم، {ولي_الأمر} = الاسم الأول لولي الأمر.
+export const GDEF_MSG='سلام ونعمة يا {ولي_الأمر}، بخصوص {الاسم} في خدمة إعدادي. ربنا يبارك أسرتكم ❤️';
+export const firstName=(s)=>String(s||'').trim().split(/\s+/)[0]||'';
+export const validEG=(p)=>/^01[0125]\d{8}$/.test(normPhoneEG(p||''));
+export const gTel=(p)=>validEG(p)?'tel:+20'+normPhoneEG(p).slice(1):'';
+export const gWa=(p,text)=>validEG(p)?`https://wa.me/20${normPhoneEG(p).slice(1)}?text=${encodeURIComponent(text||'')}`:'';
+export const gMsg=(tpl,student,guardian)=>String(tpl||GDEF_MSG).split('{الاسم}').join(firstName(student)).split('{ولي_الأمر}').join(firstName(guardian)||'ولي الأمر');
+export const loadGTpl=(key)=>{ try{ return localStorage.getItem(key)||GDEF_MSG; }catch(e){ return GDEF_MSG; } };
+export const saveGTpl=(key,v)=>{ try{ localStorage.setItem(key,v); }catch(e){} };
+export function guardianBox({phone,name,student,tpl}){
+  const t=gTel(phone); if(!t) return '';
+  return `<div class="k" data-g="1" style="margin-top:6px">👪 ${esc(name||'ولي الأمر')}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><a class="btn sec" data-g="tel" style="${SB}" href="${t}">📞 اتصال بولي الأمر</a><a class="btn sec" data-g="wa" style="${SB}" target="_blank" rel="noopener" href="${gWa(phone,gMsg(tpl,student,name))}">👪 واتساب ولي الأمر</a></div>`;
+}
