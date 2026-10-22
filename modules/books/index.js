@@ -90,7 +90,9 @@ export async function mount(el,ctx){
   async function finish(source){
     const r=X.grade(st.qs,st.ans);
     if(tm) T.pause(tm,pnow());
+    const elBefore=tm?Math.round(tm.el*10)/10:null;
     const att=await R.record({bookId:st.bid,chapterNum:st.num,score:r.score,total:r.total,source,answered:answeredCount(st.qs,st.ans),durationSec:tm?T.toDuration(tm.el):dur(st.startedAt,Date.now())});   // (v9.481) وقت الأسئلة الفعلي
+    SY.finishDiag({at:Date.now(),build:'v9.484',bid:st.bid,num:st.num,att:att.attemptNo,hasTimer:!!tm,el:elBefore,dur:att.durationSec==null?null:att.durationSec,src:source});   // (v9.484) تشخيص مؤقت: ما حسبه finish()
     await S.clear(); sess=null;
     st.res=r; st.att=att; st.sum=R.summary(await R.all(),st.bid,st.num); st.s='result';
   }
@@ -222,13 +224,16 @@ export async function mount(el,ctx){
   async function sendNow(btn){
     const box=el.querySelector('#sendst'); btn.disabled=true; const lbl=btn.textContent; btn.textContent='جارٍ التحقق والإرسال…'; box.className='hint'; box.textContent='';
     const [s,u]=await Promise.all([SY.flush(),checkUpdate()]);
-    const dg=await SY.resultDiag();   // (v9.483) تشخيص مؤقت: آخر رفع نتيجة
-    const dgTxt='🧪 '+(dg?`آخر رفع (${dg.build}): محلي=${dg.local==null?'فاضي':dg.local} · اتبعت=${dg.sent==null?'فاضي':dg.sent} · ${dg.err?'فشل: '+dg.err:'HTTP '+dg.http+' · السيرفر رجّع='+(dg.read==null?'فاضي':dg.read)+(dg.retried?' · (اتعاد برقم محاولة جديد)':'')}`:'مفيش سجل رفع على الجهاز ده (لو خلّصت امتحان، يبقى sync.js على الجهاز قديم)');
+    const [dg,fd,mine]=await Promise.all([SY.resultDiag(),SY.getFinishDiag(),R.all().catch(()=>[])]);   // (v9.484) تشخيص مؤقت
+    const v=(x)=>x==null?'فاضي':x;
+    const fdTxt='🧪 آخر إنهاء ('+(fd?`${fd.build}): إصحاح ${fd.num} محاولة ${fd.att} · عدّاد=${fd.hasTimer?v(fd.el):'مفيش'} · اتسجّل=${v(fd.dur)} · ${fd.src}`:'مفيش سجل: finish() على الجهاز قديم)');
+    const loc='🧪 آخر محاولات على الجهاز: '+([...mine].sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,4).map(a=>`إ${a.chapterNum}/م${a.attemptNo}=${v(a.durationSec)}`).join(' | ')||'—');
+    const dgTxt='🧪 '+(dg?`آخر رفع (${dg.build}) لإصحاح ${v(dg.num)} م${v(dg.attemptNo)} (من ${v(dg.ageMin)} د): محلي=${v(dg.local)} · اتبعت=${v(dg.sent)} · ${dg.err?'فشل: '+dg.err:'HTTP '+dg.http+' · السيرفر رجّع='+v(dg.read)}`:'مفيش سجل رفع على الجهاز ده (sync.js قديم؟)');
     const say=({off:'المزامنة غير مفعّلة على هذا التطبيق.',offline:'مفيش نت دلوقتي. نتيجتك محفوظة على جهازك وهتتبعت تلقائياً أول ما النت يرجع.',
       pending:'لسه ما اتبعتتش. هتتحاول تلقائياً.',done:'تم إرسال نتيجتك ✅'})[s.state];
     const up=({found:'فيه تحديث جديد للتطبيق — اضغط "تحديث" في الشريط الذهبي.',none:'التطبيق على آخر نسخة ✅'})[u]||'';
     box.className=(s.state==='done'||s.state==='off')&&!s.dead?'hint':'warn';
-    box.innerHTML=[say,s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',s.err?'السبب (للمراجعة): '+s.err:'',up,dgTxt].filter(Boolean).map(esc).join('<br>');
+    box.innerHTML=[say,s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',s.err?'السبب (للمراجعة): '+s.err:'',up,fdTxt,loc,dgTxt].filter(Boolean).map(esc).join('<br>');
     btn.disabled=false; btn.textContent=lbl;
   }
   el.onclick=async(e)=>{
