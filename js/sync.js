@@ -41,6 +41,21 @@ async function fail(r){ let j={}; try{ j=await r.json(); }catch(e){} return new 
 async function insert(table,row){
   const r=await api(`/rest/v1/${table}?on_conflict=id`,{method:'POST',body:row,prefer:'resolution=ignore-duplicates,return=minimal'});
   if(!r.ok) throw await fail(r);
+  return r.status;
+}
+// (v9.483) تشخيص رفع النتيجة: بيسجّل (محلي / اتبعت / HTTP / اللي السيرفر رجّعه بعد الحفظ) ويظهر في زر «إرسال النتيجة». best-effort: ما بيكسرش الرفع أبداً.
+export const resultDiag=()=>db.get('resultDiag').catch(()=>null);
+async function diagResult(a,row,info){
+  try{
+    const d={at:Date.now(),build:'v9.483',attemptId:a.id,local:a.durationSec==null?null:a.durationSec,sent:row.duration_sec==null?null:row.duration_sec,http:info.http,attemptNo:row.attempt_no,retried:!!info.retried,read:'؟'};
+    if(info.err){ d.err=info.err; }
+    else{
+      try{ const r=await api(`/rest/v1/results?id=eq.${encodeURIComponent(a.id)}&select=duration_sec`);
+        if(r.ok){ const x=await r.json(); d.read=x.length?(x[0].duration_sec==null?null:x[0].duration_sec):'مفيش صف ظاهر'; } else d.read='HTTP '+r.status; }
+      catch(e){ d.read='تعذّرت القراءة'; }
+    }
+    await db.set('resultDiag',d);
+  }catch(e){}
 }
 // بعد استرجاع الحساب على جهاز جديد قد يكون الجهاز فقد ربط الملكية → ندّعي الملف بالكود
 async function ensureClaim(){
@@ -82,20 +97,23 @@ const H={
     // دلوقتي duration_sec بيتبعت دايماً، وأي فشل بيتسجّل في الكونسول بوضوح. لو السيرفر مش شايف العمود (كاش PostgREST قديم)
     // بنعامله كخطأ مؤقت: النتيجة تفضل في الطابور وتتعاد بتراجع زمني (مش بتموت ومش بتترفع ناقصة) والسبب يظهر في زر الإرسال.
     const ins=async()=>{
-      try{ await insert('results',row); }
+      try{ return await insert('results',row); }
       catch(e){
+        diagResult(a,row,{err:[e.status,e.code,String(e.message||'').slice(0,60)].filter(Boolean).join(' ')});
         console.error('[sync] result.create فشل رفع النتيجة',{attemptId:a.id,status:e.status,code:e.code,message:e.message,duration_sec:row.duration_sec});
         if(e.code==='PGRST204') throw new E(503,'PGRST204',"PostgREST مش شايف عمود duration_sec — شغّل: notify pgrst, 'reload schema'");
         throw e;
       }
     };
-    try{ await ins(); }
+    let http=null, retried=false;
+    try{ http=await ins(); }
     catch(e){
       if(e.code!=='23505') throw e; // تعارض على (profile,book,chapter,attempt_no) = رقم محاولة مستخدم على السيرفر: نأخذ التالي
       const r=await api(`/rest/v1/results?profile_id=eq.${j.profileId}&book_id=eq.${encodeURIComponent(a.bookId)}&chapter_num=eq.${a.chapterNum}&select=attempt_no&order=attempt_no.desc&limit=1`);
       if(!r.ok) throw await fail(r); const top=(await r.json())[0];
-      row.attempt_no=(top?top.attempt_no:0)+1; await ins();
+      row.attempt_no=(top?top.attempt_no:0)+1; http=await ins(); retried=true;
     }
+    await diagResult(a,row,{http,retried});
     SA[a.id]=1; await db.set('syncedAttempts',SA); // مفتاح منفصل: sync وحده يكتبه فلا يتعارض مع R.record
     return 'done';
   },
