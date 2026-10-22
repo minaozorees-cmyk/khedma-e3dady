@@ -10,6 +10,7 @@ import {esc} from '../../js/consts.js';
 import {n} from '../../js/dates.js';
 import * as TTS from '../../js/tts.js';
 import * as T from '../../js/solve-timer.js';
+import * as db from '../../js/db.js';
 
 const AR='٠١٢٣٤٥٦٧٨٩';
 const mmss=(ms)=>{ const s=Math.ceil(Math.max(0,ms)/1000); return (n(Math.floor(s/60))+':'+String(s%60).padStart(2,'0')).replace(/\d/g,d=>AR[d]); };
@@ -53,11 +54,18 @@ export async function mount(el,ctx){
     return S.save({bid:st.bid,num:st.num,i:st.i,sel:st.sel,ans:Array.from({length:st.qs.length},(_,k)=>st.ans[k]??null),
       opts:st.opts,tl:st.shuf.map(x=>x?x.map(e=>e.id):null),startedAt:st.startedAt,profileId:pid,el:tm?T.snap(tm,pnow()):0}); };   // el = ثواني الحل المجمّعة (v9.481)
   // يغلق الجلسة ويحسبها محاولة بدرجتها الحالية؛ يرجع رسالة للمخدوم
+  // (v9.485) R.record لازم يرجّع الوقت اللي اتبعتله؛ لو ما رجّعوش (results.js قديم) نكتبه في المحاولة المخزّنة وفي الكائن الراجع.
+  async function ensureDuration(att,d){
+    if(d==null||att.durationSec===d) return false;
+    try{ const X=(await db.get('results'))||{attempts:[]}, t=X.attempts.find(x=>x.id===att.id); if(t){ t.durationSec=d; await db.set('results',X); } }catch(e){ console.error('[results] تعذّر حفظ durationSec',e); }
+    att.durationSec=d; return true;
+  }
   async function closeSession(s,source){
     const f=findCh(s.bid,s.num), qs0=f&&sessQs(f.c,s);
     if(!f||!qs0){ await S.clear(); sess=null; return ''; }
     const ans=s.ans||[], r=X.grade(qs0,ans);
-    await R.record({bookId:s.bid,chapterNum:s.num,score:r.score,total:r.total,source,answered:answeredCount(qs0,ans),durationSec:Number.isFinite(s.el)?T.toDuration(s.el):dur(s.startedAt,s.updatedAt)});   // جلسات قديمة بلا el: الحساب القديم
+    const cd=Number.isFinite(s.el)?T.toDuration(s.el):dur(s.startedAt,s.updatedAt);
+    const ca=await R.record({bookId:s.bid,chapterNum:s.num,score:r.score,total:r.total,source,answered:answeredCount(qs0,ans),durationSec:cd}); await ensureDuration(ca,cd);   // جلسات قديمة بلا el: الحساب القديم
     await S.clear(); sess=null;
     const where=`${f.b.title} — إصحاح ${n(s.num)}`;
     return source==='expired'
@@ -91,8 +99,10 @@ export async function mount(el,ctx){
     const r=X.grade(st.qs,st.ans);
     if(tm) T.pause(tm,pnow());
     const elBefore=tm?Math.round(tm.el*10)/10:null;
-    const att=await R.record({bookId:st.bid,chapterNum:st.num,score:r.score,total:r.total,source,answered:answeredCount(st.qs,st.ans),durationSec:tm?T.toDuration(tm.el):dur(st.startedAt,Date.now())});   // (v9.481) وقت الأسئلة الفعلي
-    SY.finishDiag({at:Date.now(),build:'v9.484',bid:st.bid,num:st.num,att:att.attemptNo,hasTimer:!!tm,el:elBefore,dur:att.durationSec==null?null:att.durationSec,src:source});   // (v9.484) تشخيص مؤقت: ما حسبه finish()
+    const durSec=tm?T.toDuration(tm.el):dur(st.startedAt,Date.now());   // (v9.481) وقت الأسئلة الفعلي
+    const att=await R.record({bookId:st.bid,chapterNum:st.num,score:r.score,total:r.total,source,answered:answeredCount(st.qs,st.ans),durationSec:durSec});
+    const fixed=await ensureDuration(att,durSec);   // (v9.485) لو results.js على الجهاز قديم ومابيحفظش الوقت: نصلّحه فوراً قبل الرفع
+    SY.finishDiag({at:Date.now(),build:'v9.485',bid:st.bid,num:st.num,att:att.attemptNo,hasTimer:!!tm,el:elBefore,dur:att.durationSec==null?null:att.durationSec,fix:fixed,src:source});   // (v9.484) تشخيص مؤقت: ما حسبه finish()
     await S.clear(); sess=null;
     st.res=r; st.att=att; st.sum=R.summary(await R.all(),st.bid,st.num); st.s='result';
   }
@@ -226,7 +236,7 @@ export async function mount(el,ctx){
     const [s,u]=await Promise.all([SY.flush(),checkUpdate()]);
     const [dg,fd,mine]=await Promise.all([SY.resultDiag(),SY.getFinishDiag(),R.all().catch(()=>[])]);   // (v9.484) تشخيص مؤقت
     const v=(x)=>x==null?'فاضي':x;
-    const fdTxt='🧪 آخر إنهاء ('+(fd?`${fd.build}): إصحاح ${fd.num} محاولة ${fd.att} · عدّاد=${fd.hasTimer?v(fd.el):'مفيش'} · اتسجّل=${v(fd.dur)} · ${fd.src}`:'مفيش سجل: finish() على الجهاز قديم)');
+    const fdTxt='🧪 آخر إنهاء ('+(fd?`${fd.build}): إصحاح ${fd.num} محاولة ${fd.att} · عدّاد=${fd.hasTimer?v(fd.el):'مفيش'} · اتسجّل=${v(fd.dur)} · results.js=${fd.fix?'قديم (اتصلّح)':'سليم'} · ${fd.src}`:'مفيش سجل: finish() على الجهاز قديم)');
     const loc='🧪 آخر محاولات على الجهاز: '+([...mine].sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,4).map(a=>`إ${a.chapterNum}/م${a.attemptNo}=${v(a.durationSec)}`).join(' | ')||'—');
     const dgTxt='🧪 '+(dg?`آخر رفع (${dg.build}) لإصحاح ${v(dg.num)} م${v(dg.attemptNo)} (من ${v(dg.ageMin)} د): محلي=${v(dg.local)} · اتبعت=${v(dg.sent)} · ${dg.err?'فشل: '+dg.err:'HTTP '+dg.http+' · السيرفر رجّع='+v(dg.read)}`:'مفيش سجل رفع على الجهاز ده (sync.js قديم؟)');
     const say=({off:'المزامنة غير مفعّلة على هذا التطبيق.',offline:'مفيش نت دلوقتي. نتيجتك محفوظة على جهازك وهتتبعت تلقائياً أول ما النت يرجع.',
