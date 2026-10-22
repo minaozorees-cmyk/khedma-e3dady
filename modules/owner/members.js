@@ -5,6 +5,7 @@ import {normName,normPhone,normPhoneEG,genCode} from '../../js/auth.js';
 import * as SY from '../../js/sync.js';
 import {esc} from '../../js/consts.js';
 import {copyText} from '../books/codes.js';
+import {guardianBox,loadGTpl} from '../../js/sapi.js';
 
 const GRADES=['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'], GENDERS=['ولد','بنت'];
 const DAY=864e5, KEEP_DAYS=30, PAGE=20;
@@ -169,7 +170,7 @@ export async function mount(el,{role}={}){
       const btns=del?`${left>0?`<button class="btn sec" style="${SB}" data-a="restore" data-id="${m.id}">♻️ استرجاع</button>`:''}<button class="x" data-a="purge" data-id="${m.id}">حذف نهائي</button>`
         :`${m.archived_at?`<button class="btn sec" style="${SB}" data-a="unarch" data-id="${m.id}">إلغاء الأرشفة</button>`:`<button class="btn sec" style="${SB}" data-a="edit" data-id="${m.id}">✏️ تعديل</button>`}<button class="btn sec" style="${SB}" data-a="newcode" data-id="${m.id}">🔄 كود جديد</button><button class="x" data-a="del" data-id="${m.id}">🗑 حذف</button>`;
       return `<div class="card2"><div class="row" style="border:0;padding:0"><b>${esc(m.name)}</b><span class="badge ${del?'off':'on'}">${del?'محذوف':m.archived_at?'مؤرشف':'نشط'}</span></div>
-        <div class="k">${info}</div>${codeRow(m)}${svBox(m)}${st}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btns}</div>${S.sel===m.id&&!del?editor(m):''}</div>`;
+        <div class="k">${info}</div>${guardianBox({phone:m.guardian_phone,name:m.guardian_name,student:m.name,tpl:loadGTpl('fuMsgG')})}${codeRow(m)}${svBox(m)}${st}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btns}</div>${S.sel===m.id&&!del?editor(m):''}</div>`;
     }).join(''):'<div class="hint">لا توجد نتائج.</div>';
   }
   function dist(title,map,total){
