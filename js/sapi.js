@@ -38,6 +38,16 @@ export const gWa=(p,text)=>validEG(p)?`https://wa.me/20${normPhoneEG(p).slice(1)
 export const gMsg=(tpl,student,guardian)=>String(tpl||GDEF_MSG).split('{الاسم}').join(firstName(student)).split('{ولي_الأمر}').join(firstName(guardian)||'ولي الأمر');
 export const loadGTpl=(key)=>{ try{ return localStorage.getItem(key)||GDEF_MSG; }catch(e){ return GDEF_MSG; } };
 export const saveGTpl=(key,v)=>{ try{ localStorage.setItem(key,v); }catch(e){} };
+// (v9.490) أزرار المخدوم نفسه: «📞 اتصال» + «💬 واتساب» (💬 مش 👪 عشان ما تتلخبطش مع أزرار ولي الأمر). نفس دوال الافتقاد (telLink/waLink)؛ بتظهر لو فيه رقم.
+// tpl = نص الرسالة، و{الاسم} = الاسم الأول للمخدوم. الافتراضي: نص الافتقاد المحفوظ (fuMsg) في loadFuTpl.
+export const DEF_FU_MSG='سلام ونعمة يا {الاسم} ❤️ افتقدناك في خدمة إعدادي. عامل إيه؟ ربنا يبارك حياتك.';
+export const loadFuTpl=()=>{ try{ return localStorage.getItem('fuMsg')||DEF_FU_MSG; }catch(e){ return DEF_FU_MSG; } };
+export const stMsg=(tpl,name)=>String(tpl||DEF_FU_MSG).split('{الاسم}').join(firstName(name));
+export function studentBox({phone,name,tpl}){
+  const t=telLink(phone); if(!t) return '';
+  const w=waLink(phone,stMsg(tpl,name));
+  return `<div class="sbox" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><a class="btn sec" data-s="tel" style="${SB}" href="${esc(t)}">📞 اتصال</a>${w?`<a class="btn sec" data-s="wa" style="${SB}" target="_blank" rel="noopener" href="${esc(w)}">💬 واتساب</a>`:''}</div>`;
+}
 export function guardianBox({phone,name,student,tpl}){
   const t=gTel(phone); if(!t) return '';
   return `<div class="k" data-g="1" style="margin-top:6px">👪 ${esc(name||'ولي الأمر')}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><a class="btn sec" data-g="tel" style="${SB}" href="${t}">📞 اتصال بولي الأمر</a><a class="btn sec" data-g="wa" style="${SB}" target="_blank" rel="noopener" href="${gWa(phone,gMsg(tpl,student,name))}">👪 واتساب ولي الأمر</a></div>`;
