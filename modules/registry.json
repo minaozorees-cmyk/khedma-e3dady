@@ -170,6 +170,17 @@
       "enabled": true
     },
     {
+      "id": "coupons",
+      "title": "تقرير الكوبونات الأسبوعي",
+      "icon": "🎁",
+      "roles": [
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/owner/coupons.js",
+      "enabled": true
+    },
+    {
       "id": "staff",
       "title": "حسابات الطاقم",
       "icon": "👥",
