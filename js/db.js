@@ -4,7 +4,7 @@ let _db;
 // (v9.40) حسابات متعددة على جهاز واحد: المفاتيح الشخصية تُحفظ تلقائياً تحت 'u:<id>:<key>' حسب الحساب النشط (setScope)،
 // فكل الوحدات القديمة (الاعتراف، الأجبية، الرسائل…) تصبح لكل حساب بلا تعديل. بلا حساب نشط تُقرأ من 'u:-:' أي فارغة (لا تتسرب بيانات حساب آخر).
 // المفاتيح المشتركة (results، sbAuth، accessCache، booksCache…) تبقى كما هي؛ النتائج تُفلتر بـprofileId داخل results.js.
-const PERSONAL=new Set(['profile','confession','agpeya','liturgy','settings','inbox','lastBackup','dataSince','notifiedDay','libLast','agpLast','lastSessionAt','accessUnlocked','exam_session']);
+const PERSONAL=new Set(['profile','confession','agpeya','liturgy','settings','inbox','lastBackup','dataSince','notifiedDay','libLast','agpLast','lastSessionAt','accessUnlocked','exam_session','read_session']);   // (v9.489) read_session: وقت القراءة لكل حساب
 const PERSONAL_RE=/^lastOpen_/;
 let scope='';
 export const isPersonal=(k)=>PERSONAL.has(k)||PERSONAL_RE.test(k);
