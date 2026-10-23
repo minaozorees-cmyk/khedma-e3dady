@@ -1,5 +1,5 @@
 // ملف المخدوم الموحد: يعرض السجلات الموجودة فقط؛ لا ينشئ ملاحظات أو بيانات جديدة.
-import {api,errMsg,fmtD,SB} from '../../js/sapi.js';
+import {api,errMsg,fmtD,SB,studentBox,loadFuTpl} from '../../js/sapi.js';
 import {esc} from '../../js/consts.js';
 export async function mount(el,{role}={}){
   if(!['servant','priest','owner'].includes(role)){el.innerHTML='<div class="ph">الصفحة غير متاحة.</div>';return;}
@@ -12,11 +12,13 @@ export async function mount(el,{role}={}){
     const p=await api(`/rest/v1/profiles?select=id,name,grade,gender,created_at&id=eq.${id}&limit=1`);
     if(!p||!p.length) throw Object.assign(new Error('لا يمكن الوصول إلى هذا الملف أو أنه غير موجود.'),{status:403});
     const profile=p[0];
-    const [attendance,results,followups,opens]=await Promise.all([
+    const [attendance,results,followups,opens,phone]=await Promise.all([
       api(`/rest/v1/attendance?select=meeting_id,status,updated_at,meetings(held_on,title)&profile_id=eq.${id}&order=updated_at.desc&limit=50`).catch(()=>[]),
       api(`/rest/v1/results?select=book_id,chapter_num,score,total,attempt_no,attempted_at&profile_id=eq.${id}&order=attempted_at.desc&limit=100`).catch(()=>[]),
       api(`/rest/v1/followups?select=created_at&profile_id=eq.${id}&order=created_at.desc&limit=30`).catch(()=>[]),
-      api(`/rest/v1/book_opens?select=book_id,chapter_num,opened_at&profile_id=eq.${id}&order=opened_at.desc&limit=30`).catch(()=>[])
+      api(`/rest/v1/book_opens?select=book_id,chapter_num,opened_at&profile_id=eq.${id}&order=opened_at.desc&limit=30`).catch(()=>[]),
+      // (v9.490) التليفون في طلب منفصل: لو فشل الأزرار بس تختفي والملف يفتح عادي
+      api(`/rest/v1/profiles?select=phone&id=eq.${id}&limit=1`).then(r=>(r&&r[0]&&r[0].phone)||'').catch(()=>'')
     ]);
     const firstMap=new Map();
     for(const r of results){const k=r.book_id+'|'+r.chapter_num;if(!firstMap.has(k)||Number(r.attempt_no)<Number(firstMap.get(k).attempt_no))firstMap.set(k,r);}
@@ -25,7 +27,7 @@ export async function mount(el,{role}={}){
     const attCount={present:attendance.filter(a=>a.status==='present').length,absent:attendance.filter(a=>a.status==='absent').length,excused:attendance.filter(a=>a.status==='excused').length};
     root.innerHTML=`<div class="card2" style="background:linear-gradient(135deg,rgba(201,168,76,.16),rgba(201,168,76,.03))">
       <button class="btn sec" data-go="dashboard" style="${SB}">← لوحة قيادة الخادم</button>
-      <h2 class="ttl">${esc(profile.name)}</h2><div class="hint">${esc(profile.grade)} · ${esc(profile.gender||'')} · تاريخ التسجيل ${fmtD(profile.created_at)}</div>
+      <h2 class="ttl">${esc(profile.name)}</h2><div class="hint">${esc(profile.grade)} · ${esc(profile.gender||'')} · تاريخ التسجيل ${fmtD(profile.created_at)}</div>${studentBox({phone,name:profile.name,tpl:loadFuTpl()})}
       <div class="stats"><div class="st"><b>${attCount.present}</b><small>حضور (آخر ٥٠ سجلًا)</small></div><div class="st"><b>${attCount.absent}</b><small>غياب (آخر ٥٠ سجلًا)</small></div><div class="st"><b>${first.length}</b><small>إصحاح له نتيجة</small></div><div class="st"><b>${avg===null?'—':avg+'٪'}</b><small>متوسط نسبة أول محاولة</small></div></div>
     </div>
     <div class="card2"><b>🗓️ الحضور</b><div class="hint">آخر ${attendance.length} سجل حضور متاح.</div>
