@@ -210,10 +210,17 @@ nav{--h:50px;position:relative;gap:0;background:rgba(255,255,255,.06);border-rad
 nav a{position:relative;z-index:2;height:var(--h);padding:0 16px;border-radius:0;border-right:0;background:none;color:#e5e5e5;letter-spacing:.3px;transition:color .3s ease-in-out}
 nav a:hover{background:none;color:#fff}
 nav a.active{background:none;box-shadow:none;border-right-color:transparent;color:var(--on-gold,#1a1405);font-weight:700}
-nav .gl-glider{position:absolute;z-index:1;right:0;left:0;top:0;height:var(--h);border-radius:1rem;transform:translateY(calc(var(--i,0) * 100%));
+nav .gl-glider{position:absolute;z-index:1;right:0;left:0;top:0;height:var(--h);border-radius:1rem;transform:translateY(calc(var(--gi,var(--i,0)) * 100% + var(--gb,0) * var(--gh,26px)));
   background:linear-gradient(135deg,rgba(255,215,0,.35),var(--gold,#E8C468));box-shadow:0 0 18px rgba(255,215,0,.45),0 0 10px rgba(255,235,150,.4) inset;
   transition:transform .5s cubic-bezier(.37,1.95,.66,.56),opacity .3s}
 nav.noact .gl-glider{opacity:0}
+/* (v9.491) عناوين مجموعات قائمة المالك: ارتفاع ثابت --gh (نفسه بيدخل في حساب موضع المؤشر الذهبي) */
+nav .nav-grp{box-sizing:border-box;height:var(--gh,26px);display:flex;align-items:flex-end;padding:0 20px 3px;font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--gold-2,#F2D98C);opacity:.62;border-top:1px solid rgba(232,196,104,.2);position:relative;z-index:2;pointer-events:none;user-select:none}
+nav .nav-grp:first-child{border-top:0}
+[data-theme=light] nav .nav-grp{color:var(--gold-dim,#8a6d1a);border-top-color:rgba(138,109,26,.25)}
+body.has-rail .sidebar.rail:not(.open) nav#nav{--gh:10px}
+body.has-rail .sidebar.rail:not(.open) nav#nav .nav-grp{padding:0}
+body.has-rail .sidebar.rail:not(.open) nav#nav .nav-grp span{display:none}
 [data-theme=light] nav{background:rgba(0,0,0,.05);box-shadow:inset 1px 1px 4px rgba(255,255,255,.8),inset -1px -1px 6px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.08)}
 [data-theme=light] nav a,[data-theme=light] nav a:hover,[data-theme=light] nav a.active{color:#000}
 
