@@ -21,22 +21,23 @@ export const bounds=(from,to)=>[parse(from).getTime(),parse(addDays(to,1)).getTi
 export const validRange=(from,to)=>/^\d{4}-\d{2}-\d{2}$/.test(from||'')&&/^\d{4}-\d{2}-\d{2}$/.test(to||'')&&key(parse(from))===from&&key(parse(to))===to&&from<=to;
 
 // rows من SY.resultsFirst(): {profile_id,name,grade,book_id,chapter_num,first_attempted_at,...}
-// يرجع {groups:[{grade,students:[{id,name,count}],total}],total,students}
+// يرجع {groups:[{grade,students:[{id,name,count,zero}],total,zeros}],total,students,zeros}   (zero = كام إصحاح أول محاولة له بدرجة ٠)
 export function aggregate(rows,from,to){
   const [lo,hi]=bounds(from,to), by=new Map();
   for(const r of rows||[]){
     const t=Date.parse(r.first_attempted_at); if(!Number.isFinite(t)||t<lo||t>=hi) continue;
     const g=String(r.grade||'—'), id=r.profile_id;
     let G=by.get(g); if(!G) by.set(g,G=new Map());
-    let S=G.get(id); if(!S) G.set(id,S={id,name:String(r.name||'—'),count:0});
+    let S=G.get(id); if(!S) G.set(id,S={id,name:String(r.name||'—'),count:0,zero:0});
     S.count++;
+    if(r.first_score!=null&&Number(r.first_score)===0) S.zero++;   // (v9.492) أول محاولة بدرجة ٠ (غالباً خروج سريع): تنبيه للمراجعة بس، الرقم ما بيتغيرش
   }
   const rank=(g)=>{ const i=GRADES.indexOf(g); return i<0?99:i; };
   const groups=[...by.entries()].sort((a,b)=>rank(a[0])-rank(b[0])||collator.compare(a[0],b[0])).map(([grade,G])=>{
     const students=[...G.values()].sort((a,b)=>b.count-a.count||collator.compare(a.name,b.name));
-    return {grade,students,total:students.reduce((s,x)=>s+x.count,0)};
+    return {grade,students,total:students.reduce((s,x)=>s+x.count,0),zeros:students.reduce((s,x)=>s+x.zero,0)};
   });
-  return {groups,total:groups.reduce((s,g)=>s+g.total,0),students:groups.reduce((s,g)=>s+g.students.length,0)};
+  return {groups,total:groups.reduce((s,g)=>s+g.total,0),students:groups.reduce((s,g)=>s+g.students.length,0),zeros:groups.reduce((s,g)=>s+g.zeros,0)};
 }
 
 // «19 - 25 أكتوبر 2026» أو «28 أكتوبر - 3 نوفمبر 2026» أو «28 ديسمبر 2026 - 3 يناير 2027»
