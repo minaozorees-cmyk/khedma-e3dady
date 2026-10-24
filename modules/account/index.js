@@ -3,6 +3,7 @@
 import * as SY from '../../js/sync.js';
 import * as PUSH from '../../js/push.js';
 import {esc} from '../../js/consts.js';
+import {APP_VERSION} from '../../js/version.js';   // (v9.492) رقم النسخة للطاقم
 const PM={denied:'الإذن اتحجب.',dismissed:'ما اتفعّلش (الإذن اتقفل).',subscribe:'تعذّر الاشتراك. جرّب تاني على نت أقوى.',offline:'مفيش اتصال بالنت.',nosql:'الخدمة لسه ما اتجهّزتش على السيرفر (SQL v9.48).',not_staff:'الحساب ده مش مسموح له بالإشعارات.',auth:'الجلسة انتهت. سجّل الدخول من جديد.',server:'تعذّر التنفيذ. جرّب بعد شوية.',unsupported:'الإشعارات غير مدعومة هنا.',rate:'استنى شوية وجرّب تاني.',nofn:'دالة الإرسال غير منشورة على السيرفر.',novapid:'مفاتيح الإرسال غير مضبوطة على السيرفر.',not_found:'الجهاز غير مسجّل. اضغط «إعادة التفعيل».',failed:'الإرسال فشل. جرّب تاني.',gone:'الاشتراك انتهى. فعّل تاني.',forbidden:'غير مسموح.'};
 const MSG={weak:'كلمة السر غير مقبولة. جرّب كلمة أطول.',same:'اختر كلمة سر مختلفة عن الحالية.',offline:'مفيش اتصال بالنت.',auth:'سجّل الدخول من جديد.',server:'السيرفر مش متاح دلوقتي.',bad:'تعذّر التغيير. جرّب تاني.'};
 export async function mount(el,{forced=false,onDone}={}){
@@ -24,11 +25,11 @@ export async function mount(el,{forced=false,onDone}={}){
     $('#np').value=''; $('#np2').value='';
     if(onDone) onDone(); else $('#pok').textContent='تم تغيير كلمة السر ✅';
   };
-  if(!forced) paintPush();
+  if(!forced){ const v=document.createElement('div'); v.id='appver'; v.className='hint'; v.style.cssText='text-align:center;margin-top:10px'; v.textContent='رقم النسخة: '+APP_VERSION; el.querySelector('.gate').appendChild(v); paintPush(); }   // (v9.492) آخر عنصر في الصفحة
 
   // (v9.48) ملخص المخدومين: إشعار واحد للخادم بعدد مسنديه اللي ما فتحوش الإصحاح (بدون أسماء). الأسماء جوه «الافتقاد».
   async function paintPush(note){
-    let box=$('#spbox'); if(!box){ const c=document.createElement('div'); c.className='card2'; c.id='spbox'; el.querySelector('.gate').appendChild(c); box=c; }
+    let box=$('#spbox'); if(!box){ const c=document.createElement('div'); c.className='card2'; c.id='spbox'; const g=el.querySelector('.gate'); g.insertBefore(c,g.querySelector('#appver')); box=c; }
     const st=await PUSH.stateStaff().catch(()=>({s:'off'})), n=st.s==='off'?null:await SY.myAssignedCount();
     const m0=note?`<div class="hint" id="spm">${esc(note)}</div>`:'<div class="hint" id="spm"></div>';
     if(st.s==='off'){ box.style.display='none'; return; }
