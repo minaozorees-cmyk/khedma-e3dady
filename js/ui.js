@@ -67,6 +67,7 @@ export function initUI(){
   addEventListener('keydown',e=>{ if(e.key==='Escape') closeSidebar(); });
   addEventListener('hashchange',closeSidebar);
   $('#nav').addEventListener('click',e=>{ if(e.target.closest('a')) closeSidebar(); });
+  initNavGroups();   // (v9.491) عناوين مجموعات قائمة المالك
   stars();
   autoHideHeader();
   edgeSwipe();
@@ -130,4 +131,53 @@ function edgeSwipe(){
   },{passive:true});
   addEventListener('touchend',()=>{ on=false; },{passive:true});
   addEventListener('touchcancel',()=>{ on=false; },{passive:true});
+}
+
+// ── (v9.491) تقسيم قائمة المالك بعناوين فاصلة ──
+// بيانات التجميع من modules/registry.json: group = اسم القسم، go = ترتيب المالك. ترتيب الملف نفسه ما اتغيرش، فقوايم الخدام والمخدومين زي ما هي.
+// بتشتغل للمالك فقط (القائمة فيها «لوحة المالك»). router.js بيبني القائمة زي ما هو، وهنا بنعيد ترتيب الروابط ونضيف العناوين بعدها، ونصحّح موضع المؤشر الذهبي (--gi/--gb).
+// أي خطأ أو فشل في تحميل الـregistry = القائمة تفضل بالشكل الأصلي بالظبط.
+// plan: الروابط بالترتيب الجديد + مكان كل عنوان. info = {id:{g,o}}. بترجّع null لو مفيش داعي للتعديل.
+export function planNav(ids,info){
+  if(!info||!ids.includes('members')) return null;
+  const rows=ids.map((id,i)=>({id,i,g:(info[id]||{}).g||'',o:(info[id]||{}).o||1e6}));
+  rows.sort((a,b)=>a.o-b.o||a.i-b.i);
+  const items=[]; let cur=null;
+  for(const r of rows){ if(r.g&&r.g!==cur){ items.push({grp:r.g}); cur=r.g; } else if(!r.g) cur=null; items.push({id:r.id}); }
+  return items;
+}
+// موضع المؤشر: ترتيب الرابط النشط بين الروابط، وعدد العناوين قبله
+export function glideVars(items,activeId){
+  let gi=-1,gb=0,n=0,g=0; for(const it of items){ if(it.grp){ g++; continue; } if(it.id===activeId){ gi=n; gb=g; break; } n++; }
+  return gi<0?null:{gi,gb};
+}
+export function initNavGroups(){
+  const nav=$('#nav'); if(!nav||typeof MutationObserver==='undefined') return;
+  let info=null;
+  const ready=fetch('modules/registry.json').then(r=>r.json()).then(j=>{ info={}; for(const m of (j.modules||[])) if(m.group) info[m.id]={g:m.group,o:Number(m.go)||1e6}; }).catch(()=>{ info=null; });
+  const links=()=>[...nav.children].filter(x=>x.tagName==='A');
+  function sync(){
+    const ls=links(), act=ls.find(a=>a.classList.contains('active'));
+    const items=[...nav.children].filter(x=>x.tagName==='A'||x.classList.contains('nav-grp')).map(x=>x.tagName==='A'?{id:x.dataset.id}:{grp:1});
+    const v=act&&glideVars(items,act.dataset.id);
+    if(v){ nav.style.setProperty('--gi',v.gi); nav.style.setProperty('--gb',v.gb); }
+  }
+  function run(){
+    try{
+      const ls=links(); if(!ls.length) return;
+      if(!nav.querySelector('.nav-grp')){   // قائمة جديدة من router (مفيهاش عناوين بعد)
+        const plan=planNav(ls.map(a=>a.dataset.id),info); if(!plan) return;
+        const byId=new Map(ls.map(a=>[a.dataset.id,a])), gl=nav.querySelector('.gl-glider');
+        for(const it of plan){
+          let el; if(it.grp){ el=document.createElement('div'); el.className='nav-grp'; el.setAttribute('role','presentation'); const s=document.createElement('span'); s.textContent=it.grp; el.appendChild(s); }
+          else el=byId.get(it.id);
+          nav.insertBefore(el,gl||null);
+        }
+      }
+      sync();
+    }catch(e){ console.error('[nav-groups]',e); }
+    mo.takeRecords();   // تجاهل تغييراتنا نحن
+  }
+  const mo=new MutationObserver(()=>{ ready.then(run); });
+  mo.observe(nav,{childList:true}); mo.observe(nav,{attributes:true,attributeFilter:['class'],subtree:true});
 }
