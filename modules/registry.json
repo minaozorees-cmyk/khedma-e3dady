@@ -12,7 +12,9 @@
       ],
       "type": "module",
       "entry": "modules/dashboard/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "المتابعة اليومية",
+      "go": 4
     },
     {
       "id": "profile",
@@ -25,7 +27,9 @@
       ],
       "type": "module",
       "entry": "modules/profile/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "المتابعة اليومية",
+      "go": 5
     },
     {
       "id": "board",
@@ -38,7 +42,9 @@
       ],
       "type": "page",
       "entry": "pages/servant.html",
-      "enabled": true
+      "enabled": true,
+      "group": "الأدوات",
+      "go": 17
     },
     {
       "id": "live",
@@ -51,7 +57,9 @@
       ],
       "type": "page",
       "entry": "pages/servant.html#live",
-      "enabled": true
+      "enabled": true,
+      "group": "النتائج",
+      "go": 1
     },
     {
       "id": "generator",
@@ -62,7 +70,9 @@
       ],
       "type": "page",
       "entry": "pages/generator.html",
-      "enabled": true
+      "enabled": true,
+      "group": "الأدوات",
+      "go": 18
     },
     {
       "id": "books",
@@ -76,7 +86,9 @@
       ],
       "type": "module",
       "entry": "modules/books/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "شاشات المخدوم",
+      "go": 19
     },
     {
       "id": "library",
@@ -90,7 +102,9 @@
       ],
       "type": "module",
       "entry": "modules/library/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "شاشات المخدوم",
+      "go": 20
     },
     {
       "id": "codes",
@@ -103,7 +117,9 @@
       ],
       "type": "module",
       "entry": "modules/books/codes.js",
-      "enabled": true
+      "enabled": true,
+      "group": "المحتوى",
+      "go": 10
     },
     {
       "id": "messages",
@@ -117,7 +133,9 @@
       ],
       "type": "module",
       "entry": "modules/messages/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "التواصل",
+      "go": 15
     },
     {
       "id": "followup",
@@ -130,7 +148,9 @@
       ],
       "type": "module",
       "entry": "modules/followup/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "المتابعة اليومية",
+      "go": 6
     },
     {
       "id": "contest",
@@ -143,7 +163,9 @@
       ],
       "type": "module",
       "entry": "modules/contest/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "النتائج",
+      "go": 2
     },
     {
       "id": "attendance",
@@ -156,7 +178,9 @@
       ],
       "type": "module",
       "entry": "modules/attendance/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "المتابعة اليومية",
+      "go": 7
     },
     {
       "id": "members",
@@ -167,7 +191,9 @@
       ],
       "type": "module",
       "entry": "modules/owner/members.js",
-      "enabled": true
+      "enabled": true,
+      "group": "الناس",
+      "go": 12
     },
     {
       "id": "coupons",
@@ -178,7 +204,9 @@
       ],
       "type": "module",
       "entry": "modules/owner/coupons.js",
-      "enabled": true
+      "enabled": true,
+      "group": "النتائج",
+      "go": 3
     },
     {
       "id": "staff",
@@ -189,7 +217,9 @@
       ],
       "type": "module",
       "entry": "modules/owner/staff.js",
-      "enabled": true
+      "enabled": true,
+      "group": "الناس",
+      "go": 13
     },
     {
       "id": "assign",
@@ -200,7 +230,9 @@
       ],
       "type": "module",
       "entry": "modules/owner/assign.js",
-      "enabled": true
+      "enabled": true,
+      "group": "الناس",
+      "go": 14
     },
     {
       "id": "tools",
@@ -211,7 +243,9 @@
       ],
       "type": "module",
       "entry": "modules/owner/tools.js",
-      "enabled": true
+      "enabled": true,
+      "group": "حسابي والإعدادات",
+      "go": 22
     },
     {
       "id": "votd",
@@ -222,7 +256,9 @@
       ],
       "type": "module",
       "entry": "modules/owner/votd.js",
-      "enabled": true
+      "enabled": true,
+      "group": "المحتوى",
+      "go": 11
     },
     {
       "id": "access",
@@ -233,7 +269,9 @@
       ],
       "type": "module",
       "entry": "modules/owner/access.js",
-      "enabled": true
+      "enabled": true,
+      "group": "المحتوى",
+      "go": 9
     },
     {
       "id": "push",
@@ -244,7 +282,9 @@
       ],
       "type": "module",
       "entry": "modules/owner/push.js",
-      "enabled": true
+      "enabled": true,
+      "group": "التواصل",
+      "go": 16
     },
     {
       "id": "owner",
@@ -255,7 +295,9 @@
       ],
       "type": "module",
       "entry": "modules/owner/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "المحتوى",
+      "go": 8
     },
     {
       "id": "agpeya",
@@ -280,7 +322,9 @@
       ],
       "type": "module",
       "entry": "modules/agpeya-read/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "شاشات المخدوم",
+      "go": 21
     },
     {
       "id": "liturgy",
@@ -326,7 +370,9 @@
       ],
       "type": "module",
       "entry": "modules/account/index.js",
-      "enabled": true
+      "enabled": true,
+      "group": "حسابي والإعدادات",
+      "go": 23
     }
   ]
 }
