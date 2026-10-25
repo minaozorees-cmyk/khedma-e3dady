@@ -5,7 +5,8 @@ import {normName,normPhone,normPhoneEG,genCode} from '../../js/auth.js';
 import * as SY from '../../js/sync.js';
 import {esc} from '../../js/consts.js';
 import {copyText} from '../books/codes.js';
-import {guardianBox,loadGTpl,studentBox,loadFuTpl} from '../../js/sapi.js';   // (v9.490) studentBox: اتصال/واتساب المخدوم
+import {guardianBox,loadGTpl,studentBox,loadFuTpl} from '../../js/sapi.js';
+import {dupKeys} from '../../js/dupes.js';   // (v9.493) شارة «اسم مكرر»   // (v9.490) studentBox: اتصال/واتساب المخدوم
 
 const GRADES=['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'], GENDERS=['ولد','بنت'];
 const DAY=864e5, KEEP_DAYS=30, PAGE=20;
@@ -162,14 +163,14 @@ export async function mount(el,{role}={}){
   }
   function paintList(){
     const l=$('#list'); if(!l) return;
-    const rows=S.members.filter(matches);
+    const rows=S.members.filter(matches), dups=dupKeys(S.members);
     l.innerHTML=rows.length?rows.map(m=>{
       const a=S.act.get(m.id), del=!!m.deleted_at, left=del?daysLeft(m):0;
       const info=`${esc(m.grade)} · ${esc(m.gender)} · سُجّل ${fmtD(m.created_at)} · ${a&&a.last_seen?'آخر دخول '+fmt(a.last_seen)+' ('+a.sessions+' جلسة)':'لم يدخل بعد'}`;
       const st=del?`<div class="warn" style="margin:6px 0">${left>0?`محذوف — باقي ${left} يوم للاسترجاع`:'انتهت مهلة الاسترجاع — جاهز للتنظيف'}</div>`:'';
       const btns=del?`${left>0?`<button class="btn sec" style="${SB}" data-a="restore" data-id="${m.id}">♻️ استرجاع</button>`:''}<button class="x" data-a="purge" data-id="${m.id}">حذف نهائي</button>`
         :`${m.archived_at?`<button class="btn sec" style="${SB}" data-a="unarch" data-id="${m.id}">إلغاء الأرشفة</button>`:`<button class="btn sec" style="${SB}" data-a="edit" data-id="${m.id}">✏️ تعديل</button>`}<button class="btn sec" style="${SB}" data-a="newcode" data-id="${m.id}">🔄 كود جديد</button><button class="x" data-a="del" data-id="${m.id}">🗑 حذف</button>`;
-      return `<div class="card2"><div class="row" style="border:0;padding:0"><b>${esc(m.name)}</b><span class="badge ${del?'off':'on'}">${del?'محذوف':m.archived_at?'مؤرشف':'نشط'}</span></div>
+      return `<div class="card2"><div class="row" style="border:0;padding:0"><b>${esc(m.name)}</b><span class="badge ${del?'off':'on'}">${del?'محذوف':m.archived_at?'مؤرشف':'نشط'}</span>${!del&&!m.archived_at&&dups.has(normName(m.name))?'<span class="badge" style="background:#a33;color:#fff" title="افتح «الأسماء المكررة»">👯 اسم مكرر</span>':''}</div>
         <div class="k">${info}</div>${studentBox({phone:m.phone,name:m.name,tpl:loadFuTpl()})}${guardianBox({phone:m.guardian_phone,name:m.guardian_name,student:m.name,tpl:loadGTpl('fuMsgG')})}${codeRow(m)}${svBox(m)}${st}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btns}</div>${S.sel===m.id&&!del?editor(m):''}</div>`;
     }).join(''):'<div class="hint">لا توجد نتائج.</div>';
   }
