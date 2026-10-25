@@ -196,6 +196,19 @@
       "go": 12
     },
     {
+      "id": "dupes",
+      "title": "الأسماء المكررة",
+      "icon": "👯",
+      "roles": [
+        "owner"
+      ],
+      "type": "module",
+      "entry": "modules/owner/dupes.js",
+      "enabled": true,
+      "group": "الناس",
+      "go": 12.5
+    },
+    {
       "id": "coupons",
       "title": "تقرير الكوبونات الأسبوعي",
       "icon": "🎁",
