@@ -1,6 +1,7 @@
 // شاشة الدخول الأول للمخدوم: تسجيل جديد / استرجاع بالكود
 import * as A from './auth.js';
 import * as ACC from './accounts.js';
+import {needsInstall,askPersist} from './persist.js';   // (v9.493)
 const GRADES=['الأول الإعدادي','الثاني الإعدادي','الثالث الإعدادي'];
 const esc=(s)=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -27,7 +28,9 @@ export function showGate(root,done,opts={}){
   tN.onclick=()=>tab('n'); tR.onclick=()=>tab('r');
 
   function renderNew(){
-    body.innerHTML=`<p class="hint">سجّل بياناتك مرة واحدة. بعد التسجيل ستحصل على كود استرجاع، احتفظ به.</p>
+    const iosWarn=needsInstall()?'<div class="warn" id="iosw">📲 على الآيفون: ثبّت التطبيق الأول (زر المشاركة ⬆️ ← «إضافة إلى الشاشة الرئيسية»)، وافتحه من الأيقونة وسجّل منه. لو سجّلت من هنا هتضطر تسجّل تاني من الأيقونة.</div>':'';
+    body.innerHTML=`${iosWarn}<p class="hint">سجّل بياناتك مرة واحدة. بعد التسجيل ستحصل على كود استرجاع، احتفظ به.</p>
+    <p class="hint" id="again">سجّلت قبل كده؟ ما تسجّلش تاني: اضغط «عندي كود». ولو ضاع منك الكود اطلبه من خادمك.</p>
     ${field('name','الاسم كاملاً','<input id="name" autocomplete="off" placeholder="الاسم الثلاثي">')}
     ${field('phone','تليفونك','<input id="phone" type="tel" inputmode="tel" dir="ltr" autocomplete="off">')}
     ${field('grade','الصف',`<select id="grade"><option value="">اختر…</option>${GRADES.map(g=>`<option>${g}</option>`).join('')}</select>`)}
@@ -42,6 +45,7 @@ export function showGate(root,done,opts={}){
       body.querySelectorAll('.err').forEach(x=>x.textContent='');
       for(const k in er) body.querySelector('#e_'+k).textContent=er[k];
       if(Object.keys(er).length){ const f=body.querySelector('.err:not(:empty)'); f&&f.scrollIntoView({block:'center'}); return; }
+      askPersist();   // (v9.493) من ضغطة المخدوم نفسها، وقبل ما نحفظ الحساب
       let p; try{ p=await A.register(d); }catch(e){ const m=body.querySelector('#e_name'); if(m) m.textContent=e&&e.message==='full'?'وصلت للحد الأقصى (٣ حسابات) على هذا الجهاز.':'تعذّر التسجيل، جرّب تاني.'; return; }
       showCode(p);
     };
@@ -51,7 +55,8 @@ export function showGate(root,done,opts={}){
     lockFlow();
     body.innerHTML=`<div class="done"><h2>تم التسجيل ✅</h2><p>كود الاسترجاع الخاص بك:</p>
       <div class="code" id="rc">${esc(p.code)}</div><button class="btn sec" id="cp">نسخ الكود</button>
-      <p class="warn">اكتب الكود في مكان آمن. لو فقدت جهازك ستحتاجه مع اسمك لاسترجاع حسابك.</p>
+      <a class="btn sec" id="wa" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none" href="https://wa.me/?text=${encodeURIComponent('كود استرجاع حسابي في خدمة إعدادي: '+p.code+'\nالاسم: '+p.name)}">📲 ابعت الكود لنفسك على واتساب</a>
+      <p class="warn">اكتب الكود في مكان آمن (أو صوّر الشاشة). لو فقدت جهازك أو غيّرت التطبيق ستحتاجه مع اسمك لاسترجاع حسابك. ما تسجّلش تاني بنفس الاسم.</p>
       <button class="btn" id="ok">متابعة</button></div>`;
     body.querySelector('#cp').onclick=()=>{ try{ navigator.clipboard.writeText(p.code); body.querySelector('#cp').textContent='تم النسخ'; }catch(e){} };
     body.querySelector('#ok').onclick=()=>offerPin(p);
