@@ -4,6 +4,7 @@
 //   لو على الجهاز حساب واحد يُفتح تلقائياً؛ لو أكثر يظهر اختيار الحساب (+ الرقم السري إن وُجد) عند كل فتح جديد للتطبيق.
 // - الرقم السري: ٤ أرقام، يُخزَّن محلياً كـSHA-256 مع salt ولا يُرسل للسيرفر. هو قفل واجهة (يمنع فضول الأخوة)، لا تشفير للبيانات.
 import * as db from './db.js';
+import {isIOS,askPersist} from './persist.js';   // (v9.493)
 export const MAX=3, PIN_TRIES=5, PIN_WAIT=5*60*1000;
 const SS='acct_active';
 let data={list:[]};
@@ -44,6 +45,7 @@ export async function init(){
   try{ await migrate(); }catch(e){}                      // لو فشلت تُعاد في الفتح التالي (idempotent)
   const d=await db.getRaw('accounts'); data=d&&Array.isArray(d.list)?d:{list:[]};
   db.setScope(pick());
+  if(isIOS()) askPersist();   // (v9.493) آيفون: اطلب تخزين دائم كل فتح (بدون نافذة على iOS)
 }
 
 export const list=()=>data.list.map(a=>({id:a.id,name:a.name,locked:!!a.pin}));
