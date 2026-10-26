@@ -176,9 +176,22 @@ export async function flush(){
     const e=await db.get('syncErr'), lj=(await db.pending()).filter(x=>x.lastErr).pop();
     err=e?`${e.job} · ${[e.status,e.code,e.msg].filter(Boolean).join(' ')}`:(lj?`${lj.type} · ${lj.lastErr}`:'');
   }
-  return {state:s.pending?'pending':'done',...s,err};
+  const archived=s.pending?null:await accountArchived();   // (v9.494)
+  return {state:s.pending?'pending':'done',...s,err,archived};
 }
 export const stats=async()=>{ const j=await db.pending(); return {pending:j.filter(x=>!x.dead).length,dead:j.filter(x=>x.dead).length}; };
+// (v9.494) هل حساب المخدوم على الجهاز ده اتأرشف؟ المخدوم بيقدر يقرا صف حسابه حتى لو مؤرشف (profiles_select_own).
+// ملاحظة: رفع النتايج بيشتغل عادي للحساب المؤرشف (owns_profile مش بيشترط archived)، لكن نتايجه ما بتظهرش للخدام ولا بتتحسب. عشان كده بنبلّغ المخدوم.
+// true/false = عرفنا، null = ما نعرفش (مش مخدوم، مفيش نت، المزامنة مقفولة، خطأ): في كل الحالات دي ما نعرضش حاجة.
+export async function accountArchived(){
+  try{
+    if(!enabled()||offline()||(await A.getRole())!=='student') return null;
+    const p=await A.activeProfile(); if(!p||!p.id) return null;
+    const r=await api(`/rest/v1/profiles?id=eq.${encodeURIComponent(p.id)}&select=archived_at&limit=1`);
+    if(!r.ok) return null;
+    const rows=await r.json(); return Array.isArray(rows)&&rows.length?!!rows[0].archived_at:null;
+  }catch(e){ return null; }
+}
 
 // ===== سجلات إضافة فقط (جلسة / فتح إصحاح) — لا تُسجَّل لو المزامنة غير مفعّلة، حتى لا يكبر الطابور =====
 const stu=async()=>{ const p=await A.activeProfile(); return p&&(await A.getRole())==='student'&&enabled()?p:null; };
