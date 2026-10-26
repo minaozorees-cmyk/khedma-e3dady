@@ -10,7 +10,8 @@ import {esc} from '../../js/consts.js';
 import {n} from '../../js/dates.js';
 import * as TTS from '../../js/tts.js';
 import * as T from '../../js/solve-timer.js';
-import * as RS from '../../js/read-session.js';   // (v9.489) وقت القراءة Pause/Resume
+import * as RS from '../../js/read-session.js';
+const ARCH_MSG='⚠️ حسابك اتأرشف: نتيجتك اتسجّلت بس ما بتظهرش للخدام ولا بتتحسب. استخدم حسابك المعتمد بالكود اللي اتبعتلك (اضغط «عندي كود» واكتب اسمك والكود)، أو كلّم خادمك.';   // (v9.494)   // (v9.489) وقت القراءة Pause/Resume
 import * as db from '../../js/db.js';
 
 const AR='٠١٢٣٤٥٦٧٨٩';
@@ -259,6 +260,7 @@ export async function mount(el,ctx){
     if(['read','med','exam','verses','result'].includes(st.s)) html=`<div class="zm" style="--qz:${zoom/100}">${html}</div>`;   // (v9.39) نطاق التكبير
     TTS.stop(); el.innerHTML=html; el.scrollTop=0; qSync(); rSync();
     if(st.s==='read'){ TTS.bind(el); }
+    if(st.s==='result'&&isStudent) SY.accountArchived().then(a=>{ const bx=el.querySelector('#sendst'); if(a&&bx&&st.s==='result'){ bx.className='warn'; bx.textContent=ARCH_MSG; } }).catch(()=>{});   // (v9.494) حسابه اتأرشف؟ نبلّغه فوراً
     if(gated&&st.s==='books'){ const w=AC.nextChangeIn(); if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&st.s==='books') render(); },Math.min(w+1000,2147e6)); }   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
   }
 
@@ -291,8 +293,8 @@ export async function mount(el,ctx){
     const say=({off:'المزامنة غير مفعّلة على هذا التطبيق.',offline:'مفيش نت دلوقتي. نتيجتك محفوظة على جهازك وهتتبعت تلقائياً أول ما النت يرجع.',
       pending:'لسه ما اتبعتتش. هتتحاول تلقائياً.',done:'تم إرسال نتيجتك ✅'})[s.state];
     const up=({found:'فيه تحديث جديد للتطبيق — اضغط "تحديث" في الشريط الذهبي.',none:'التطبيق على آخر نسخة ✅'})[u]||'';
-    box.className=(s.state==='done'||s.state==='off')&&!s.dead?'hint':'warn';
-    box.innerHTML=[say,s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',s.err?'السبب (للمراجعة): '+s.err:'',up].filter(Boolean).map(esc).join('<br>');
+    box.className=(s.state==='done'||s.state==='off')&&!s.dead&&!s.archived?'hint':'warn';
+    box.innerHTML=[say,s.archived?ARCH_MSG:'',s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',s.err?'السبب (للمراجعة): '+s.err:'',up].filter(Boolean).map(esc).join('<br>');
     btn.disabled=false; btn.textContent=lbl;
   }
   el.onclick=async(e)=>{
