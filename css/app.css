@@ -309,3 +309,25 @@ body.has-rail .sidebar.open{width:var(--dw,min(320px,88vw));max-width:88vw}
 nav#nav a .t{white-space:nowrap}
 .sidebar.measure{position:fixed!important;left:-9999px!important;right:auto!important;top:0;width:max-content!important;max-width:none!important;
   transform:none!important;visibility:hidden!important;pointer-events:none;transition:none!important;overflow:visible!important;height:auto!important}
+
+/* (v9.496) دائرة تقدّم الإصحاح المفتوح — ألوان نيون. --c لون الحلقة (نيون)، --ct لون النص في الثيم الفاتح */
+.pg-btn{background:none;border:0;padding:6px;margin:0;color:inherit;font:inherit;cursor:pointer;border-radius:18px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.pg-btn.pg-sel{outline:1px solid var(--c0,rgba(201,168,76,.55));background:rgba(201,168,76,.07)}
+.pg-main{display:flex;flex-direction:column;align-items:center;gap:2px;margin:6px 0}
+.pg-ring{position:relative;width:var(--d,150px);height:var(--d,150px);flex:0 0 auto}
+.pg-svg{width:100%;height:100%;transform:rotate(-90deg);display:block;overflow:visible}
+.pg-track{fill:none;stroke:rgba(150,150,190,.22)}
+.pg-arc{fill:none;stroke:var(--c);stroke-linecap:round;filter:drop-shadow(0 0 4px var(--c)) drop-shadow(0 0 12px var(--c));transition:stroke-dashoffset .9s ease}
+.pg-in{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1.15}
+.pg-in b{font-size:calc(var(--d,150px)*.22);color:var(--c);text-shadow:0 0 8px var(--c),0 0 18px var(--c)}
+.pg-in small{font-size:calc(var(--d,150px)*.085);color:var(--c);margin-top:2px;max-width:86%}
+.lv-great{--c:#39ff14;--ct:#0a8f00}.lv-good{--c:#fff000;--ct:#8a7a00}.lv-mid{--c:#ff9100;--ct:#c25e00}.lv-low{--c:#ff2a5f;--ct:#c4002f}
+[data-theme=light] .pg-in b,[data-theme=light] .pg-in small{color:var(--ct);text-shadow:none}
+[data-theme=light] .pg-arc{filter:drop-shadow(0 0 3px var(--c))}
+.pg-cmp{font-weight:700}.pg-cmp.up{color:#39ff14}.pg-cmp.down{color:#ff2a5f}
+[data-theme=light] .pg-cmp.up{color:#0a8f00}[data-theme=light] .pg-cmp.down{color:#c4002f}
+.pg-row{display:flex;gap:10px;overflow-x:auto;padding:8px 2px;margin-top:4px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.pg-mini{flex:0 0 auto;scroll-snap-align:start;min-width:96px}
+.pg-gn{font-size:.82rem}
+.pg-det{margin-top:10px;border-top:1px solid rgba(128,128,160,.25);padding-top:8px}
+.pg-solved{margin-top:6px}
