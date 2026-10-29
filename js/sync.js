@@ -49,7 +49,7 @@ export const finishDiag=(d)=>db.set('finishDiag',d).catch(()=>{});   // (v9.484)
 export const getFinishDiag=()=>db.get('finishDiag').catch(()=>null);
 async function diagResult(a,row,info){
   try{
-    const d={at:Date.now(),build:'v9.486',attemptId:a.id,bid:row.book_id,num:row.chapter_num,ageMin:a.at?Math.round((Date.now()-a.at)/60000):null,local:a.durationSec==null?null:a.durationSec,sent:row.duration_sec==null?null:row.duration_sec,http:info.http,attemptNo:row.attempt_no,retried:!!info.retried,read:'؟'};
+    const d={at:Date.now(),build:APPV,attemptId:a.id,bid:row.book_id,num:row.chapter_num,ageMin:a.at?Math.round((Date.now()-a.at)/60000):null,local:a.durationSec==null?null:a.durationSec,sent:row.duration_sec==null?null:row.duration_sec,http:info.http,attemptNo:row.attempt_no,retried:!!info.retried,read:'؟'};
     if(info.err){ d.err=info.err; }
     else{
       try{ const r=await api(`/rest/v1/results?id=eq.${encodeURIComponent(a.id)}&select=duration_sec`);
@@ -497,4 +497,20 @@ export function init(){
   if(typeof document!=='undefined') document.addEventListener('visibilitychange',()=>{ if(!document.hidden) kick(1500); });
   setInterval(()=>kick(0),120000);
   kick(2500);
+}
+
+// ===== (v9.497) حالة ربط الجهاز بحساب المخدوم — قراءة فقط =====
+// بنفس أسلوب accountArchived: المخدوم بيقرا صف حسابه بس (profiles_select_own بتشترط auth_uid=auth.uid()).
+// يعني: الصف ظاهر = الجهاز هو المالك الحالي (true)، والصف مش ظاهر = الجهاز مش مربوط (false).
+// null = ما نعرفش (مش مخدوم، المزامنة مقفولة، مفيش نت، خطأ، أو الحساب لسه ما اترفعش للسيرفر) ← ما نحكمش في أي حالة منهم.
+// لا كتابة ولا claim ولا أي تغيير في الطابور أو الجلسة.
+import {APP_VERSION as APPV} from './version.js';   // (v9.497) بدل build:'v9.486' الثابت في diagResult
+export async function linkStatus(){
+  try{
+    if(!enabled()||offline()||(await A.getRole())!=='student') return null;
+    const p=await A.activeProfile(); if(!p||!p.id||!p.synced) return null;
+    const r=await api(`/rest/v1/profiles?id=eq.${encodeURIComponent(p.id)}&select=id&limit=1`);
+    if(!r.ok) return null;
+    const rows=await r.json(); return Array.isArray(rows)?rows.length>0:null;
+  }catch(e){ return null; }
 }
