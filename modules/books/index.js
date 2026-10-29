@@ -13,6 +13,12 @@ import * as T from '../../js/solve-timer.js';
 import * as RS from '../../js/read-session.js';
 const ARCH_MSG='⚠️ حسابك اتأرشف: نتيجتك اتسجّلت بس ما بتظهرش للخدام ولا بتتحسب. استخدم حسابك المعتمد بالكود اللي اتبعتلك (اضغط «عندي كود» واكتب اسمك والكود)، أو كلّم خادمك.';   // (v9.494)   // (v9.489) وقت القراءة Pause/Resume
 import * as db from '../../js/db.js';
+import {APP_VERSION} from '../../js/version.js';   // (v9.497)
+// (v9.497) 42501 = السيرفر رفض النتيجة لأن الجهاز مش مربوط بحساب المخدوم. النتيجة محفوظة محلياً، فنطمّنه ونوجّهه للخادم (من غير تعليمات «ادخل بالكود» لأنها ما بتعيدش الربط).
+const LINK_MSG='نتيجتك محفوظة على جهازك ومش هتضيع، بس في مشكلة في ربط حسابك بالجهاز. كلّم خادمك وابعتله رقم النسخة (من حسابي).';
+const LINK_CODE='كود الخطأ للدعم: 42501';
+const isLinkErr=(e)=>/\b42501\b/.test(String(e==null?'':e));
+const deadLinkJob=async()=>{ try{ return (await db.pending()).some(j=>j.dead&&j.type==='result.create'&&isLinkErr(j.lastErr)); }catch(e){ return false; } };   // قراءة فقط من الطابور
 
 const AR='٠١٢٣٤٥٦٧٨٩';
 const mmss=(ms)=>{ const s=Math.ceil(Math.max(0,ms)/1000); return (n(Math.floor(s/60))+':'+String(s%60).padStart(2,'0')).replace(/\d/g,d=>AR[d]); };
@@ -112,7 +118,7 @@ export async function mount(el,ctx){
     const durSec=tm?T.toDuration(tm.el):dur(st.startedAt,Date.now());   // (v9.481) وقت الأسئلة الفعلي
     const att=await R.record({bookId:st.bid,chapterNum:st.num,score:r.score,total:r.total,source,answered:answeredCount(st.qs,st.ans),durationSec:durSec});
     const fixed=await ensureDuration(att,durSec);   // (v9.485) لو results.js على الجهاز قديم ومابيحفظش الوقت: نصلّحه فوراً قبل الرفع
-    SY.finishDiag({at:Date.now(),build:'v9.486',bid:st.bid,num:st.num,att:att.attemptNo,hasTimer:!!tm,el:elBefore,dur:att.durationSec==null?null:att.durationSec,fix:fixed,src:source});   // (v9.484) تشخيص مؤقت: ما حسبه finish()
+    SY.finishDiag({at:Date.now(),build:APP_VERSION,bid:st.bid,num:st.num,att:att.attemptNo,hasTimer:!!tm,el:elBefore,dur:att.durationSec==null?null:att.durationSec,fix:fixed,src:source});   // (v9.484) تشخيص مؤقت: ما حسبه finish()
     await S.clear(); sess=null;
     st.res=r; st.att=att; st.sum=R.summary(await R.all(),st.bid,st.num); st.s='result';
   }
@@ -261,6 +267,7 @@ export async function mount(el,ctx){
     TTS.stop(); el.innerHTML=html; el.scrollTop=0; qSync(); rSync();
     if(st.s==='read'){ TTS.bind(el); }
     if(st.s==='result'&&isStudent) SY.accountArchived().then(a=>{ const bx=el.querySelector('#sendst'); if(a&&bx&&st.s==='result'){ bx.className='warn'; bx.textContent=ARCH_MSG; } }).catch(()=>{});   // (v9.494) حسابه اتأرشف؟ نبلّغه فوراً
+    if(st.s==='result'&&isStudent) deadLinkJob().then(f=>{ const bx=el.querySelector('#sendst'); if(!f||!bx||st.s!=='result') return; if(bx.className==='warn'){ bx.innerHTML=bx.innerHTML+'<br>'+esc(LINK_MSG)+'<br>'+esc(LINK_CODE); } else{ bx.className='warn'; bx.innerHTML=esc(LINK_MSG)+'<br>'+esc(LINK_CODE); } }).catch(()=>{});   // (v9.497) فيه نتيجة ميتة بسبب 42501؟ نبلّغه تلقائياً (قراءة فقط)
     if(gated&&st.s==='books'){ const w=AC.nextChangeIn(); if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&st.s==='books') render(); },Math.min(w+1000,2147e6)); }   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
   }
 
@@ -294,7 +301,8 @@ export async function mount(el,ctx){
       pending:'لسه ما اتبعتتش. هتتحاول تلقائياً.',done:'تم إرسال نتيجتك ✅'})[s.state];
     const up=({found:'فيه تحديث جديد للتطبيق — اضغط "تحديث" في الشريط الذهبي.',none:'التطبيق على آخر نسخة ✅'})[u]||'';
     box.className=(s.state==='done'||s.state==='off')&&!s.dead&&!s.archived?'hint':'warn';
-    box.innerHTML=[say,s.archived?ARCH_MSG:'',s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':'',s.err?'السبب (للمراجعة): '+s.err:'',up].filter(Boolean).map(esc).join('<br>');
+    const link=isLinkErr(s.err)&&!!s.dead;   // (v9.497) 42501: رسالة عربية بدل الكود التقني، ومن غير «تم الإرسال ✅» المضلّلة
+    box.innerHTML=[link?'':say,s.archived?ARCH_MSG:'',link?LINK_MSG:(s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':''),link?LINK_CODE:(s.err?'السبب (للمراجعة): '+s.err:''),up].filter(Boolean).map(esc).join('<br>');
     btn.disabled=false; btn.textContent=lbl;
   }
   el.onclick=async(e)=>{
