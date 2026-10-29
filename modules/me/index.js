@@ -10,6 +10,7 @@ import * as EX from '../../js/exam-session.js';
 import {loadAll} from '../../js/books.js';
 import * as PUSH from '../../js/push.js';
 import {esc} from '../../js/consts.js';
+import {APP_VERSION} from '../../js/version.js';   // (v9.497)
 
 const ar=(v)=>D.n(v);
 function agpeyaStats(S){
@@ -84,7 +85,14 @@ export async function mount(el){
       <button class="btn sec" id="pinb">🔒 ${hasPin?'تغيير الرقم السري':'وضع رقم سري'}</button>${hasPin?'<button class="btn sec" id="pinx">إلغاء الرقم السري</button>':''}
       <div id="pinbox"></div>
       <button class="btn sec" id="rmv" style="color:var(--rust)">🗑️ إزالة هذا الحساب من الجهاز</button>
-      <div class="hint" id="acm"></div></div></div>`;
+      <div class="hint" id="acm"></div></div>
+    <div class="card2"><b>ℹ️ معلومات التطبيق</b>
+      <div class="hint" id="appver">رقم النسخة: ${esc(APP_VERSION)}</div>
+      <div class="hint" id="lnkst">حالة الاتصال: جارٍ التحقق…</div></div></div>`;
+  // (v9.497) حالة ربط الجهاز بالحساب: قراءة فقط. أي فشل = «تعذّر التحقق» والصفحة شغالة.
+  SY.linkStatus().catch(()=>null).then(v=>{ const x=el.querySelector('#lnkst'); if(!x) return;
+    x.textContent=v===true?'حالة الاتصال: ✅ الجهاز مربوط بحسابك':v===false?'حالة الاتصال: ⚠️ الجهاز مش مربوط بحسابك. كلّم خادمك وابعتله رقم النسخة.':'حالة الاتصال: تعذّر التحقق الآن (تأكد من النت)';
+    if(v===false) x.className='warn'; }).catch(()=>{});
   const $=(s)=>el.querySelector(s), msg=(t)=>{ const m=$('#bm'); if(m) m.textContent=t; };
   el.onclick=(e)=>{ const t=e.target.closest('[data-go]'); if(t) location.hash='#/'+t.dataset.go; };
   const doExport=(share)=>async()=>{ try{ await B.exportFile(share); msg('تم حفظ النسخة ✅'); }catch(e){ if(e&&e.name!=='AbortError') msg('تعذّر حفظ الملف'); } };
