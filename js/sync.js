@@ -558,15 +558,15 @@ async function relink(j){
 }
 // مهمة نجحت = الربط سليم: نشيل «محتاج كود» لو كانت متعلّمة
 async function healed(j){ try{ if(j&&j.profileId&&ACC.needsCode(j.profileId)) await ACC.setNeedsCode(j.profileId,false); }catch(e){} }
-// المهام اللي ماتت/فشلت بـ42501 ترجع للطابور (dead=false, tries=0). حد أقصى ٣ مرات لكل مهمة. بتتخطى حساب «محتاج كود» (هتفشل تاني). بترجّع العدد.
-export async function reviveDeadTasks(pid){
+// المهام اللي ماتت/فشلت بـ42501 ترجع للطابور (dead=false, tries=0). حد أقصى ٣ مرات لكل مهمة (إلا opts.force). بتتخطى حساب «محتاج كود» (هتفشل تاني). بترجّع العدد.
+export async function reviveDeadTasks(pid,opts){   // (v9.499) opts.force: زر «إرسال النتيجة» (المخدوم بيطلب صراحةً) ← بدون حد الإحياء
   try{
     let n=0;
     for(const j of await db.pending()){
       if(pid&&j.profileId!==pid) continue;
       if(!String(j.lastErr||'').includes('42501')) continue;
       if(!(j.dead||j.tries>0)) continue;
-      if((j.revived||0)>=MAX_REVIVE) continue;
+      if(!(opts&&opts.force)&&(j.revived||0)>=MAX_REVIVE) continue;
       if(j.profileId&&ACC.needsCode(j.profileId)) continue;
       j.dead=false; j.tries=0; j.revived=(j.revived||0)+1; delete j.lastErr;
       await db.putJob(j); n++;
@@ -588,3 +588,9 @@ export async function claimForRestore(p){
 if(typeof A.setClaimHook==='function') A.setClaimHook(claimForRestore);
 // عند فتح التطبيق (بيتنادى من init() تحت): نحيي مهام 42501 (لو مفيش «محتاج كود») والجولة اللي بعدها (فيها ensureClaim) بتشتغل لوحدها
 function bootRevive(){ try{ setTimeout(()=>{ reviveDeadTasks().catch(()=>{}); },3000); }catch(e){} }
+
+// ===== (v9.499) حالة الطابور — قراءة فقط (للرسالة وتفاصيل الرفع) =====
+export async function queueInfo(){
+  try{ return (await db.pending()).map(j=>({type:j.type,attemptId:j.attemptId||null,profileId:j.profileId||null,dead:!!j.dead,tries:j.tries||0,err:String(j.lastErr||''),revived:j.revived||0})); }
+  catch(e){ return []; }
+}
