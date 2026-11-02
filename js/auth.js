@@ -53,17 +53,28 @@ export const logout=()=>ACC.clearActive(); // تبديل المخدوم: لا ي
 
 // sync.js يربط هذه الدالة بالسيرفر (Edge Function): async (name,code)=>profile | null (لا يوجد تطابق) | {error:'locked'|'offline'|'unavailable'}
 let remote=null; export const setRemoteRestore=(fn)=>{ remote=fn; };
+// (v9.498) sync.js بيربطها: async (profile)=>true|false|null. true = السيرفر ربط الجهاز بالحساب، false = رفض (كود اتغيّر/حساب محذوف/قفل مؤقت)، null = ما نعرفش (نت/خطأ/الحساب لسه ما اترفعش). حقن (hook) عشان ما نعملش import دائري.
+let claimHook=null; export const setClaimHook=(fn)=>{ claimHook=fn; };
 export async function restore(name,code){
   const c=normCode(code), n=normName(name);
   for(const p of await ACC.allProfiles()){ // الحساب موجود على الجهاز أصلاً: نفتحه (الكود هو المفتاح الرئيسي)
-    if(p.code===c && normName(p.name)===n){ ACC.setActive(p.id); return {ok:true,profile:p}; }
+    if(p.code===c && normName(p.name)===n){
+      // (v9.498) الحساب محلي: لازم نكلّم السيرفر ونعيد الربط (قبل كده كان بيفتح محلياً ومفيش ربط). مش بنمنع الدخول لو فشل: البانر بيشرح.
+      let v=null; if(claimHook){ try{ v=await claimHook(p); }catch(e){ v=null; } }
+      ACC.setActive(p.id); return v===false?{ok:true,profile:p,claimFailed:true}:{ok:true,profile:p};
+    }
   }
-  if(ACC.count()>=ACC.MAX) return {ok:false,reason:'full'};
+  const sameName=(await ACC.allProfiles()).some(p=>normName(p.name)===n);   // (v9.498) كود جديد لحساب موجود: مش «ممتلئ» حتى لو ٣ حسابات
+  if(ACC.count()>=ACC.MAX&&!sameName) return {ok:false,reason:'full'};
   if(remote){
     if(!isCode(c)||n.length<2) return {ok:false,reason:'mismatch'}; // لا نستهلك محاولة على السيرفر لمدخل غير صالح الشكل
     const r=await remote(name,c);
     if(r&&r.error) return {ok:false,reason:r.error};
-    if(r){ if(!ACC.has(r.id)) await ACC.add(r); ACC.setActive(r.id); return {ok:true,profile:r}; }
+    if(r){
+      if(!ACC.has(r.id)) await ACC.add(r);
+      else { try{ const old=await ACC.profileOf(r.id); if(old&&old.code!==r.code) await ACC.saveProfile({...old,code:r.code}); }catch(e){} }   // (v9.498) المالك عمل «كود جديد»: نحدّث الكود المحلي
+      ACC.setActive(r.id); return {ok:true,profile:r};
+    }
     return {ok:false,reason:'mismatch'};
   }
   return {ok:false,reason:ACC.count()?'mismatch':'nolocal'};

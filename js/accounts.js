@@ -44,10 +44,19 @@ function pick(){
 export async function init(){
   try{ await migrate(); }catch(e){}                      // لو فشلت تُعاد في الفتح التالي (idempotent)
   const d=await db.getRaw('accounts'); data=d&&Array.isArray(d.list)?d:{list:[]};
+  if(!data.needs||typeof data.needs!=='object') data.needs={};   // (v9.498) أقدم مخزن بلا needs: نعمله
   db.setScope(pick());
   if(isIOS()) askPersist();   // (v9.493) آيفون: اطلب تخزين دائم كل فتح (بدون نافذة على iOS)
 }
 
+// (v9.498) «محتاج كود»: الجهاز فقد ربط الملكية والربط الصامت بالكود المحلي ما نفعش. خريطة منفصلة data.needs[id] (مش جوّه بيانات الحساب، فـsaveProfile ما يمسحهاش).
+export const needsCode=(id)=>!!(data.needs&&data.needs[id]);
+export async function setNeedsCode(id,v){
+  if(!data.needs||typeof data.needs!=='object') data.needs={};
+  if(v){ if(data.needs[id]||!find(id)) return; data.needs[id]=Date.now(); }
+  else { if(!data.needs[id]) return; delete data.needs[id]; }
+  await save();
+}
 export const list=()=>data.list.map(a=>({id:a.id,name:a.name,locked:!!a.pin}));
 export const count=()=>data.list.length;
 export const has=(id)=>!!find(id);
@@ -92,17 +101,20 @@ export async function verifyCode(id,code){ const p=await profileOf(id); return !
 
 // ===== إزالة حساب من الجهاز =====
 // ترفض لو له مهام غير مرفوعة (تضيع بياناته). تمسح مفاتيحه، ونسخ v9.39 القديمة إن كانت له، ونتائجه المحلية.
-export async function remove(id){
+// (v9.498) المهام «الحيّة» لسه بتحاول: نرفض زي الأول. المهام «الميتة» (فشلت نهائياً): نرفض إلا لو opts.force (المخدوم أكّد بعد التحذير)، وساعتها بنمسحها معاه.
+export async function remove(id,opts){
   if(!find(id)) return {ok:true};
   const jobs=(await db.pending()).filter(j=>j.profileId===id);
-  if(jobs.length) return {ok:false,reason:'pending',n:jobs.length};
+  const live=jobs.filter(j=>!j.dead), dead=jobs.filter(j=>j.dead);
+  if(live.length) return {ok:false,reason:'pending',n:live.length};
+  if(dead.length){ if(!(opts&&opts.force)) return {ok:false,reason:'dead',n:dead.length}; for(const j of dead) await db.unqueue(j.id); }
   for(const k of await db.keys()) if(typeof k==='string'&&k.startsWith('u:'+id+':')) await db.delRaw(k);
   const lp=await db.getRaw('profile');
   if(lp&&lp.id===id){ for(const k of [...db.PERSONAL_KEYS,...(await db.keys()).filter(k=>typeof k==='string'&&/^lastOpen_/.test(k))]) await db.delRaw(k); }
   const R=await db.getRaw('results');
   if(R&&Array.isArray(R.attempts)){ R.attempts=R.attempts.filter(a=>a.profileId!==id); await db.setRaw('results',R); }
   const F=(await db.getRaw('pinFails'))||{}; if(F[id]){ delete F[id]; await db.setRaw('pinFails',F); }
-  data.list=data.list.filter(a=>a.id!==id); await save();
+  data.list=data.list.filter(a=>a.id!==id); if(data.needs) delete data.needs[id]; await save();
   clearActive();
   return {ok:true};
 }

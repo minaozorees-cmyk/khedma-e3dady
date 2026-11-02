@@ -62,10 +62,21 @@ async function diagResult(a,row,info){
 // بعد استرجاع الحساب على جهاز جديد قد يكون الجهاز فقد ربط الملكية → ندّعي الملف بالكود
 async function ensureClaim(){
   const a=await token(); if(!a.fresh) return;
+  // (v9.498) claim_profile ممكن يرجّع false من غير خطأ (كود اتغيّر / حساب محذوف / قفل ٥ محاولات في الساعة). قبل كده كنا بنتجاهله ونحفظ fresh=false فنقطع المحاولة للأبد.
+  // دلوقتي: false لحساب اترفع للسيرفر = «محتاج كود» (البانر)، ومنكررش المحاولة تلقائياً عليه (عشان ما نقفلوش)، وfresh بيفضل true لحد ما يتحل.
+  let waiting=false; const done=new Set(Array.isArray(a.claimed)?a.claimed:[]);
   for(const p of await ACC.allProfiles()){ // (v9.40) كل حسابات الجهاز لازم تتبع نفس الهوية المجهولة
-    if(p&&p.code){ const r=await api('/rest/v1/rpc/claim_profile',{method:'POST',body:{p_id:p.id,p_code:p.code}}); if(!r.ok) throw await fail(r); }
+    if(!(p&&p.code)) continue;
+    let flagged=false; try{ flagged=ACC.needsCode(p.id); }catch(e){}
+    if(flagged){ waiting=true; continue; }
+    if(done.has(p.id)) continue;
+    const r=await api('/rest/v1/rpc/claim_profile',{method:'POST',body:{p_id:p.id,p_code:p.code}}); if(!r.ok) throw await fail(r);
+    let v=true; try{ v=(await r.json()); }catch(e){}
+    if(v===false&&p.synced){ waiting=true; try{ await ACC.setNeedsCode(p.id,true); }catch(e){} }   // غير المرفوع (synced=false) false طبيعي: الصف لسه مش موجود
+    else{ done.add(p.id); try{ await ACC.setNeedsCode(p.id,false); }catch(e){} }
   }
-  a.fresh=false; await db.set('sbAuth',a);
+  if(waiting){ a.claimed=[...done]; await db.set('sbAuth',a); return; }
+  delete a.claimed; a.fresh=false; await db.set('sbAuth',a);
 }
 
 // ===== معالجات المهام =====
@@ -144,9 +155,14 @@ async function pass(){
   curJob='auth'; await ensureClaim();
   for(const j of jobs){ // بالترتيب: profile.create قبل نتائجه
     curJob=j.type;
-    try{ const res=await H[j.type](j); if(res==='done'||res==='drop') await db.unqueue(j.id); }
+    try{ const res=await H[j.type](j); if(res==='done'||res==='drop'){ await db.unqueue(j.id); await healed(j); } }
     catch(e){
       if(transient(e)) throw e;
+      // (v9.498) 42501 = الجهاز مش المالك الحالي للحساب: ربط صامت بالكود المحلي، ولو نجح نعيد المحاولة مرة واحدة على طول
+      if(String(e.code)==='42501'&&(await relink(j))){
+        try{ const r2=await H[j.type](j); if(r2==='done'||r2==='drop'){ await db.unqueue(j.id); await healed(j); continue; } }
+        catch(e2){ if(transient(e2)) throw e2; e=e2; }
+      }
       j.tries=(j.tries||0)+1; j.lastErr=String(e.code||e.status||e.message).slice(0,60); if(j.tries>=MAX_TRIES) j.dead=true; // لا نحذف أبداً: تبقى للمراجعة
       await db.putJob(j);
     }
@@ -239,6 +255,7 @@ export async function remoteRestore(name,code){
     const a=await db.get('sbAuth'); if(a&&a.fresh){ a.fresh=false; await db.set('sbAuth',a); } // الدالة ربطت الملف بالهوية الحالية
     const p={id:x.id,code:x.code,name:x.name,grade:x.grade,gender:x.gender,phone:'',email:'',guardianName:'',guardianPhone:'',createdAt:Date.parse(x.created_at)||Date.now(),synced:true};
     await pullResults(p); // لازم قبل أي محاولة جديدة، حتى لا تتكرر أرقام المحاولات
+    try{ await ACC.setNeedsCode(p.id,false); await reviveDeadTasks(p.id); kick(300); }catch(e){}   // (v9.498) الدالة ربطت الجهاز: نشيل «محتاج كود» ونحيي المهام الميتة
     return p;
   }catch(e){ return {error:'offline'}; }
 }
@@ -497,6 +514,7 @@ export function init(){
   if(typeof document!=='undefined') document.addEventListener('visibilitychange',()=>{ if(!document.hidden) kick(1500); });
   setInterval(()=>kick(0),120000);
   kick(2500);
+  bootRevive();   // (v9.498)
 }
 
 // ===== (v9.497) حالة ربط الجهاز بحساب المخدوم — قراءة فقط =====
@@ -514,3 +532,59 @@ export async function linkStatus(){
     const rows=await r.json(); return Array.isArray(rows)?rows.length>0:null;
   }catch(e){ return null; }
 }
+
+// ===== (v9.498) إعادة الربط الصامت + إحياء المهام الميتة + «محتاج كود» =====
+// كل الدوال دي try/catch: أي فشل بيرجع «ما نعرفش» ومش بيوقّف المزامنة الأساسية.
+const RELINK_COOLDOWN=10*60*1000, MAX_REVIVE=3;
+// true = السيرفر ربط الجهاز | false = السيرفر رفض (كود/حذف/قفل) | null = ما نعرفش (خطأ HTTP)
+async function claimOne(p){
+  const r=await api('/rest/v1/rpc/claim_profile',{method:'POST',body:{p_id:p.id,p_code:p.code}});
+  if(!r.ok) return null;
+  try{ return (await r.json())===true; }catch(e){ return null; }
+}
+// مهمة فشلت بـ42501: نجرّب ربط صامت بالكود المحلي (مش لو متعلّم «محتاج كود»؛ وبعد أي فشل/خطأ مهلة ١٠ دقايق). نجح → true.
+async function relink(j){
+  try{
+    const p=j&&j.profileId?await ACC.profileOf(j.profileId):null;
+    if(!p||!p.synced||!p.code||ACC.needsCode(p.id)) return false;
+    const tr=(await db.get('claimTry'))||{};
+    if(tr[p.id]&&Date.now()-tr[p.id]<RELINK_COOLDOWN) return false;
+    const v=await claimOne(p);
+    if(v===true){ await ACC.setNeedsCode(p.id,false); await reviveDeadTasks(p.id); return true; }
+    tr[p.id]=Date.now(); await db.set('claimTry',tr);   // المهلة بعد الفشل/الخطأ بس (النجاح مش بيتعدّ في قفل ٥ محاولات، فسحب الأجهزة المتبادل بيتصلّح كل مرة)
+    if(v===false) await ACC.setNeedsCode(p.id,true);   // الكود المحلي مش مقبول: البانر
+    return false;
+  }catch(e){ return false; }
+}
+// مهمة نجحت = الربط سليم: نشيل «محتاج كود» لو كانت متعلّمة
+async function healed(j){ try{ if(j&&j.profileId&&ACC.needsCode(j.profileId)) await ACC.setNeedsCode(j.profileId,false); }catch(e){} }
+// المهام اللي ماتت/فشلت بـ42501 ترجع للطابور (dead=false, tries=0). حد أقصى ٣ مرات لكل مهمة. بتتخطى حساب «محتاج كود» (هتفشل تاني). بترجّع العدد.
+export async function reviveDeadTasks(pid){
+  try{
+    let n=0;
+    for(const j of await db.pending()){
+      if(pid&&j.profileId!==pid) continue;
+      if(!String(j.lastErr||'').includes('42501')) continue;
+      if(!(j.dead||j.tries>0)) continue;
+      if((j.revived||0)>=MAX_REVIVE) continue;
+      if(j.profileId&&ACC.needsCode(j.profileId)) continue;
+      j.dead=false; j.tries=0; j.revived=(j.revived||0)+1; delete j.lastErr;
+      await db.putJob(j); n++;
+    }
+    if(n) kick(300);
+    return n;
+  }catch(e){ return 0; }
+}
+// auth.restore بينادي ده لما المخدوم يدخل كوده (عندي كود / البانر): ربط إجباري من السيرفر. true/false/null.
+export async function claimForRestore(p){
+  try{
+    if(!enabled()||offline()||!p||!p.synced||!p.code) return null;
+    const v=await claimOne(p);
+    if(v===true){ await ACC.setNeedsCode(p.id,false); await reviveDeadTasks(p.id); kick(300); }
+    else if(v===false){ await ACC.setNeedsCode(p.id,true); }
+    return v;
+  }catch(e){ return null; }
+}
+if(typeof A.setClaimHook==='function') A.setClaimHook(claimForRestore);
+// عند فتح التطبيق (بيتنادى من init() تحت): نحيي مهام 42501 (لو مفيش «محتاج كود») والجولة اللي بعدها (فيها ensureClaim) بتشتغل لوحدها
+function bootRevive(){ try{ setTimeout(()=>{ reviveDeadTasks().catch(()=>{}); },3000); }catch(e){} }

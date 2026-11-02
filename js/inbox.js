@@ -14,7 +14,7 @@ export async function refresh(){
   const old=await cached(), fresh=await SY.inboxFetch(p.id);
   if(!fresh) return {...old,fromCache:true};
   const read=old.read||{}, seen=new Set(old.list.map(m=>m.id));
-  const list=fresh.map(m=>({...m,is_read:!!(m.is_read||read[m.id])}));
+  const list=Array.isArray(fresh)?fresh.map(m=>({...m,is_read:!!(m.is_read||read[m.id])})):[];   // (v9.498) احتياط: رد غير مصفوفة
   const box={at:Date.now(),list,read};
   await db.set('inbox',box);
   return {...box,fromCache:false,added:list.filter(m=>!seen.has(m.id)&&!m.is_read)};
