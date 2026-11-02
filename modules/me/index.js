@@ -159,7 +159,11 @@ export async function mount(el){
     if(!confirm('هتتشال «'+p.name+'» من الجهاز مع سجلات الأجبية والقداسات والاعتراف والرسائل. تأكد إنك حافظ كود الاسترجاع ('+p.code+') ونسخة احتياطية. متأكد؟')) return;
     if(ACC.hasPin(p.id)){ const v=prompt('اكتب الرقم السري للتأكيد'); if(v==null) return; const r=await ACC.verifyPin(p.id,v); if(!r.ok){ am(r.locked?'محاولات كتير غلط. استنى ٥ دقايق.':'الرقم غلط.'); return; } }
     am('جارٍ رفع البيانات المعلّقة…'); try{ await SY.flush(); }catch(e){}
-    const r=await ACC.remove(p.id);
+    let r=await ACC.remove(p.id);
+    if(!r.ok&&r.reason==='dead'){   // (v9.498) نتايج فشلت نهائياً (مش بتحاول تاني): نسمح بالحذف بعد تحذير صريح
+      if(!confirm('⚠️ لو مسحت الحساب:\n• فيه '+ar(r.n)+' نتيجة لسه ما اتبعتتش (فشلت نهائياً) هتضيع نهائياً.\n• نتايجك اللي اتبعتت هتفضل على السيرفر.\n• لو عايز ترجع، محتاج كودك (أو كود جديد من الخادم).\nمتأكد؟')) return;
+      r=await ACC.remove(p.id,{force:true});
+    }
     if(!r.ok){ am('في '+ar(r.n)+' بيانات لسه ما اترفعتش للسيرفر. اتصل بالنت وجرّب تاني.'); return; }
     location.reload();
   };
