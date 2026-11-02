@@ -20,7 +20,6 @@ const LINK_MSG='نتيجتك محفوظة على جهازك ومش هتضيع، 
 const LINK_MSG_CODE='نتيجتك محفوظة على جهازك ومش هتضيع. ادخل الكود في الشريط الأصفر اللي فوق وهتتبعت لوحدها.';   // (v9.498) لو البانر ظاهر
 const LINK_CODE='كود الخطأ للدعم: 42501';
 const isLinkErr=(e)=>/\b42501\b/.test(String(e==null?'':e));
-const deadLinkJob=async()=>{ try{ return (await db.pending()).some(j=>j.dead&&j.type==='result.create'&&isLinkErr(j.lastErr)); }catch(e){ return false; } };   // قراءة فقط من الطابور
 
 const AR='٠١٢٣٤٥٦٧٨٩';
 const mmss=(ms)=>{ const s=Math.ceil(Math.max(0,ms)/1000); return (n(Math.floor(s/60))+':'+String(s%60).padStart(2,'0')).replace(/\d/g,d=>AR[d]); };
@@ -285,7 +284,7 @@ export async function mount(el,ctx){
     TTS.stop(); el.innerHTML=html; el.scrollTop=0; qSync(); rSync();
     if(st.s==='read'){ TTS.bind(el); }
     if(st.s==='result'&&isStudent) SY.accountArchived().then(a=>{ const bx=el.querySelector('#sendst'); if(a&&bx&&st.s==='result'){ bx.className='warn'; bx.textContent=ARCH_MSG; } }).catch(()=>{});   // (v9.494) حسابه اتأرشف؟ نبلّغه فوراً
-    if(st.s==='result'&&isStudent) deadLinkJob().then(f=>{ const bx=el.querySelector('#sendst'); if(!f||!bx||st.s!=='result') return; if(bx.className==='warn'){ bx.innerHTML=bx.innerHTML+'<br>'+esc(linkMsg())+'<br>'+esc(LINK_CODE); } else{ bx.className='warn'; bx.innerHTML=esc(linkMsg())+'<br>'+esc(LINK_CODE); } }).catch(()=>{});   // (v9.497) فيه نتيجة ميتة بسبب 42501؟ نبلّغه تلقائياً (قراءة فقط)
+    if(st.s==='result'&&isStudent) autoLines().then(L=>{ const bx=el.querySelector('#sendst'); if(!L||!bx||st.s!=='result') return; const h=L.map(esc).join('<br>'); if(bx.className==='warn'){ bx.innerHTML=bx.innerHTML+'<br>'+h; } else{ bx.className='warn'; bx.innerHTML=h; } }).catch(()=>{});   // (v9.497) + (v9.499): رسالة تلقائية حسب «نتيجة الشاشة دي»
     if(gated&&st.s==='books'){ const w=AC.nextChangeIn(); if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&st.s==='books') render(); },Math.min(w+1000,2147e6)); }   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
   }
 
@@ -293,12 +292,20 @@ export async function mount(el,ctx){
   let diagCopy='';
   const dv=(x)=>x==null?'فاضي':x;
   async function diagLines(){
-    const [dg,fd,mine]=await Promise.all([SY.resultDiag(),SY.getFinishDiag(),R.all().catch(()=>[])]);
+    const [dg,fd,mine,qi]=await Promise.all([SY.resultDiag(),SY.getFinishDiag(),R.all().catch(()=>[]),SY.queueInfo()]);   // (v9.499) + queueInfo
     return [
       'آخر إنهاء: '+(fd?`إصحاح ${fd.num} محاولة ${fd.att} · عدّاد=${fd.hasTimer?dv(fd.el):'مفيش'} · اتسجّل=${dv(fd.dur)} · results.js=${fd.fix?'قديم (اتصلّح)':'سليم'} · ${fd.src} (${fd.build})`:'مفيش سجل'),
       'آخر محاولات على الجهاز: '+([...mine].sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,4).map(a=>`إ${a.chapterNum}/م${a.attemptNo}=${dv(a.durationSec)}`).join(' | ')||'—'),
-      'آخر رفع: '+(dg?`إصحاح ${dv(dg.num)} م${dv(dg.attemptNo)} (من ${dv(dg.ageMin)} د) · محلي=${dv(dg.local)} · اتبعت=${dv(dg.sent)} · ${dg.err?'فشل: '+dg.err:'HTTP '+dg.http+' · السيرفر رجّع='+dv(dg.read)} (${dg.build})`:'مفيش سجل')
+      'آخر رفع: '+(dg?`إصحاح ${dv(dg.num)} م${dv(dg.attemptNo)} (من ${dv(dg.ageMin)} د) · محلي=${dv(dg.local)} · اتبعت=${dv(dg.sent)} · ${dg.err?'فشل: '+dg.err:'HTTP '+dg.http+' · السيرفر رجّع='+dv(dg.read)} (${dg.build})`
+:'مفيش سجل'),
+      'الطابور: '+qText(qi,mine)
     ];
+  }
+  // (v9.499) حالة الطابور في «تفاصيل الرفع»: كام مهمة حيّة/ميتة، أنهي إصحاح ومحاولة، سببها، وكام مرة اتحيّت، وهل الحساب «محتاج كود»
+  function qText(qi,mine){
+    const aLab=(j)=>{ const a=mine.find(x=>x.id===j.attemptId); return a?'إ'+a.chapterNum+'/م'+a.attemptNo:j.type; };
+    const live=qi.filter(j=>!j.dead).length, dead=qi.filter(j=>j.dead).length;
+    return 'حيّة='+live+' · ميتة='+dead+(qi.length?' | '+qi.slice(0,6).map(j=>(j.dead?'ميتة ':'حيّة ')+aLab(j)+' ('+(j.err||'—')+'، محاولات='+j.tries+'، حُيّت='+j.revived+')').join(' | '):'')+' · محتاج كود='+(ncOn()?'نعم':'لا');
   }
   async function refreshDiag(){
     const box=el.querySelector('#diagbox'); if(!box||box.hidden) return;
@@ -311,16 +318,38 @@ export async function mount(el,ctx){
     try{ const ta=document.createElement('textarea'); ta.value=t; ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); ta.remove(); return ok; }catch(e){ return false; }
   }
   // (v9.3) زر "إرسال": يرسل النتائج المعلّقة الآن + يفحص التحديث. لا يعيد رسم الشاشة (عشان الرسالة تفضل ظاهرة).
+  // (v9.499) الرسالة بتتبني على «نتيجة الشاشة دي» مش على أي مهمة ميتة قديمة. لو الحالية اتبعتت والقديمة لسه ← نقول كده بصراحة (والحساب مربوط لأن الحالية وصلت).
+  const staleLines=async(err)=>{
+    if(!isStudent||!st.att||!st.att.id) return null;
+    const info=await SY.queueInfo(), cur=st.att.id;
+    if(info.some(j=>j.type==='result.create'&&j.attemptId===cur)) return null;   // الحالية هي اللي لسه ما اتبعتتش: الرسائل القديمة
+    const old=info.filter(j=>j.type==='result.create'&&j.attemptId!==cur); if(!old.length) return null;
+    const mine=await R.all().catch(()=>[]), lab=(j)=>{ const a=mine.find(x=>x.id===j.attemptId); return a?'إصحاح '+n(a.chapterNum)+' محاولة '+n(a.attemptNo):'نتيجة قديمة'; };
+    const has42=isLinkErr(err)||old.some(j=>isLinkErr(j.err));
+    const L=['نتيجتك دي اتبعتت ✅ وحسابك مربوط.','فيه '+n(old.length)+' نتيجة قديمة لسه ما اتبعتتش: '+old.slice(0,3).map(lab).join('، ')+'.'];
+    if(has42){ L.push('السيرفر رفضها بكود 42501 رغم إن حسابك مربوط. افتح «📊 تفاصيل الرفع» وابعتها لخادمك.'); L.push(LINK_CODE); } else L.push('هتتحاول تتبعت تلقائياً.');
+    return L;
+  };
+  // الرسالة التلقائية عند فتح شاشة النتيجة: (أ) النتيجة الحالية نفسها ميتة بـ42501 ← رسالة الربط، (ب) الحالية اتبعتت والقديمة لسه ← staleLines، وغير كده ما نغيّرش حاجة.
+  const autoLines=async()=>{
+    if(!isStudent||!st.att||!st.att.id) return null;
+    const info=await SY.queueInfo();
+    if(info.some(j=>j.type==='result.create'&&j.attemptId===st.att.id&&j.dead&&isLinkErr(j.err))) return [linkMsg(),LINK_CODE];
+    return await staleLines('');
+  };
   async function sendNow(btn){
     const box=el.querySelector('#sendst'); btn.disabled=true; const lbl=btn.textContent; btn.textContent='جارٍ التحقق والإرسال…'; box.className='hint'; box.textContent='';
+    if(isStudent&&prof&&typeof SY.reviveDeadTasks==='function'){ try{ await SY.reviveDeadTasks(prof.id,{force:true}); }catch(e){} }   // (v9.499) المخدوم بيطلب الإرسال صراحةً: المهام القديمة الميتة بـ42501 تترجع تحاول تاني (بدون حد الإحياء)
     const [s,u]=await Promise.all([SY.flush(),checkUpdate()]);
     refreshDiag();   // لو صندوق التفاصيل مفتوح نحدّثه
     const say=({off:'المزامنة غير مفعّلة على هذا التطبيق.',offline:'مفيش نت دلوقتي. نتيجتك محفوظة على جهازك وهتتبعت تلقائياً أول ما النت يرجع.',
       pending:'لسه ما اتبعتتش. هتتحاول تلقائياً.',done:'تم إرسال نتيجتك ✅'})[s.state];
     const up=({found:'فيه تحديث جديد للتطبيق — اضغط "تحديث" في الشريط الذهبي.',none:'التطبيق على آخر نسخة ✅'})[u]||'';
+    const sl=(s.state==='done'||s.state==='pending')?await staleLines(s.err):null;   // (v9.499)
+    if(sl){ box.className='warn'; box.innerHTML=[...sl,s.archived?ARCH_MSG:'',up].filter(Boolean).map(esc).join('<br>'); btn.disabled=false; btn.textContent=lbl; return; }
     box.className=(s.state==='done'||s.state==='off')&&!s.dead&&!s.archived?'hint':'warn';
-    const link=isLinkErr(s.err)&&(!!s.dead||ncOn());   // (v9.497) + (v9.498): لو «محتاج كود» نفس الرسالة حتى قبل ما المهمة تموت 42501: رسالة عربية بدل الكود التقني، ومن غير «تم الإرسال ✅» المضلّلة
-    box.innerHTML=[link?'':say,s.archived?ARCH_MSG:'',link?linkMsg():(s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':''),link?LINK_CODE:(s.err?'السبب (للمراجعة): '+s.err:''),up].filter(Boolean).map(esc).join('<br>');
+    const link=isLinkErr(s.err);   // (v9.499) أي 42501 باقي بعد المحاولة (ربط صامت + إعادة محاولة) يبقى مش هيتصلّح لوحده: نقول الرسالة بدل «هتتحاول تلقائياً»   // (v9.497) + (v9.498): لو «محتاج كود» نفس الرسالة حتى قبل ما المهمة تموت 42501: رسالة عربية بدل الكود التقني، ومن غير «تم الإرسال ✅» المضلّلة
+    box.innerHTML=[link?'':say,s.archived?ARCH_MSG:'',link?linkMsg():(s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':''),link?LINK_CODE:(isLinkErr(s.err)?LINK_CODE:(s.err?'السبب (للمراجعة): '+s.err:'')),up].filter(Boolean).map(esc).join('<br>');
     btn.disabled=false; btn.textContent=lbl;
     if(ncOn()&&!el.querySelector('#ncbar')) await render();   // (v9.498) اتعلّم «محتاج كود» أثناء الإرسال: نرسم البانر
   }
