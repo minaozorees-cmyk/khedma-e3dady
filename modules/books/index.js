@@ -14,8 +14,10 @@ import * as RS from '../../js/read-session.js';
 const ARCH_MSG='⚠️ حسابك اتأرشف: نتيجتك اتسجّلت بس ما بتظهرش للخدام ولا بتتحسب. استخدم حسابك المعتمد بالكود اللي اتبعتلك (اضغط «عندي كود» واكتب اسمك والكود)، أو كلّم خادمك.';   // (v9.494)   // (v9.489) وقت القراءة Pause/Resume
 import * as db from '../../js/db.js';
 import {APP_VERSION} from '../../js/version.js';   // (v9.497)
+import * as ACC from '../../js/accounts.js';   // (v9.498) needsCode للبانر
 // (v9.497) 42501 = السيرفر رفض النتيجة لأن الجهاز مش مربوط بحساب المخدوم. النتيجة محفوظة محلياً، فنطمّنه ونوجّهه للخادم (من غير تعليمات «ادخل بالكود» لأنها ما بتعيدش الربط).
 const LINK_MSG='نتيجتك محفوظة على جهازك ومش هتضيع، بس في مشكلة في ربط حسابك بالجهاز. كلّم خادمك وابعتله رقم النسخة (من حسابي).';
+const LINK_MSG_CODE='نتيجتك محفوظة على جهازك ومش هتضيع. ادخل الكود في الشريط الأصفر اللي فوق وهتتبعت لوحدها.';   // (v9.498) لو البانر ظاهر
 const LINK_CODE='كود الخطأ للدعم: 42501';
 const isLinkErr=(e)=>/\b42501\b/.test(String(e==null?'':e));
 const deadLinkJob=async()=>{ try{ return (await db.pending()).some(j=>j.dead&&j.type==='result.create'&&isLinkErr(j.lastErr)); }catch(e){ return false; } };   // قراءة فقط من الطابور
@@ -30,6 +32,21 @@ export async function mount(el,ctx){
   const {books,problems}=await loadAll();
   const prof=await A.activeProfile(), pid=prof?prof.id:'local', nm=esc((prof&&prof.name.split(' ')[0])||'حبيبي');
   const staff=ctx.role!=='student', isStudent=ctx.role==='student'&&!!prof, gated=ctx.role==='student'; // v9.21: القفل بالمواعيد على المخدوم فقط
+  // (v9.498) «محتاج كود»: الجهاز فقد ربط الملكية والربط الصامت بالكود المحلي ما نفعش ← شريط أصفر بحقل كود في شاشة المسابقة والنتيجة (بيتبني بس لو ACC.needsCode)
+  const ncOn=()=>{ try{ return !!(isStudent&&prof&&ACC.needsCode(prof.id)); }catch(e){ return false; } };
+  const linkMsg=()=>ncOn()?LINK_MSG_CODE:LINK_MSG;
+  const ncBanner=()=>`<div id="ncbar" class="card2" style="border:1px solid rgba(232,196,104,.6);background:rgba(232,196,104,.13)"><b>⚠️ جلسة الاتصال محتاجة تحديث. ادخل الكود بتاعك لتكمل.</b><input id="nccode" dir="ltr" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="8" placeholder="الكود" style="display:block;width:100%;box-sizing:border-box;margin:10px 0 8px;padding:12px;border-radius:10px;border:1px solid rgba(232,196,104,.5);background:rgba(0,0,0,.25);color:inherit;font:inherit;letter-spacing:3px;text-transform:uppercase;text-align:center"><button class="btn" data-a="nclink">🔗 ربط</button><div class="hint" id="ncmsg" aria-live="polite"></div></div>`;
+  async function ncLink(btn){
+    const inp=el.querySelector('#nccode'), msg=el.querySelector('#ncmsg'); if(!inp||!msg||!prof) return;
+    if(!A.normCode(inp.value)){ msg.textContent='اكتب الكود الأول.'; return; }
+    btn.disabled=true; msg.textContent='جارٍ الربط…';
+    let r; try{ r=await A.restore(prof.name,inp.value); }catch(e){ r={ok:false,reason:'offline'}; }
+    btn.disabled=false;
+    if(r&&r.ok&&r.profile&&r.profile.id!==prof.id){ ACC.setActive(prof.id); msg.textContent='الكود ده لحساب تاني بنفس الاسم. اكتب كود حسابك إنت.'; return; }   // ما نغيّرش الحساب النشط من البانر
+    if(r&&r.ok&&!r.claimFailed&&!ncOn()){ flash='✅ تم ربط جهازك بحسابك. نتايجك هتتبعت تلقائياً.'; render(); return; }
+    if(r&&r.ok) msg.textContent='السيرفر مش قابل الكود ده (ممكن الخادم غيّره أو الحساب اتقفل مؤقتاً). كلّم خادمك وخد كود جديد.';
+    else msg.textContent=({mismatch:'الكود غلط. اتأكد منه وجرّب تاني.',locked:'محاولات كتير غلط. استنى شوية وجرّب تاني.',offline:'مفيش نت دلوقتي. جرّب لما النت يرجع.',unavailable:'الخدمة مش متاحة دلوقتي. جرّب بعد شوية.',full:'الجهاز ممتلئ بالحسابات.'})[r&&r.reason]||'تعذّر الربط دلوقتي. جرّب تاني.';
+  }
   let st={s:'books'}, flash='', tick=null, sess=null, bt=null, tm=null, qt=null, rt=null, rtk=null, rmap={}, rSaved=0;   // (v9.489) rt: وقت القراءة الفعلي، rtk: مؤقّت عرضه، rmap: جلسات القراءة المحفوظة، rSaved: آخر حفظ   // (v9.481) tm: وقت الحل الفعلي، qt: مؤقّت عرض العدّاد   // bt: مؤقّت ظهور أسفار جديدة عند حلول ميعادها (v9.39)
   const unlocked=new Set(); // إصحاحات انتهى عدّاد قراءتها في هذه الجلسة
   const book=()=>books.find(b=>b.id===st.bid);
@@ -264,10 +281,11 @@ export async function mount(el,ctx){
     let html=await views[st.s]();
     if(flash&&st.s!=='exam'){ html=`<div class="card2">ℹ️ ${esc(flash)}</div>`+html; flash=''; }
     if(['read','med','exam','verses','result'].includes(st.s)) html=`<div class="zm" style="--qz:${zoom/100}">${html}</div>`;   // (v9.39) نطاق التكبير
+    if((st.s==='books'||st.s==='result')&&ncOn()) html=ncBanner()+html;   // (v9.498) البانر الأصفر
     TTS.stop(); el.innerHTML=html; el.scrollTop=0; qSync(); rSync();
     if(st.s==='read'){ TTS.bind(el); }
     if(st.s==='result'&&isStudent) SY.accountArchived().then(a=>{ const bx=el.querySelector('#sendst'); if(a&&bx&&st.s==='result'){ bx.className='warn'; bx.textContent=ARCH_MSG; } }).catch(()=>{});   // (v9.494) حسابه اتأرشف؟ نبلّغه فوراً
-    if(st.s==='result'&&isStudent) deadLinkJob().then(f=>{ const bx=el.querySelector('#sendst'); if(!f||!bx||st.s!=='result') return; if(bx.className==='warn'){ bx.innerHTML=bx.innerHTML+'<br>'+esc(LINK_MSG)+'<br>'+esc(LINK_CODE); } else{ bx.className='warn'; bx.innerHTML=esc(LINK_MSG)+'<br>'+esc(LINK_CODE); } }).catch(()=>{});   // (v9.497) فيه نتيجة ميتة بسبب 42501؟ نبلّغه تلقائياً (قراءة فقط)
+    if(st.s==='result'&&isStudent) deadLinkJob().then(f=>{ const bx=el.querySelector('#sendst'); if(!f||!bx||st.s!=='result') return; if(bx.className==='warn'){ bx.innerHTML=bx.innerHTML+'<br>'+esc(linkMsg())+'<br>'+esc(LINK_CODE); } else{ bx.className='warn'; bx.innerHTML=esc(linkMsg())+'<br>'+esc(LINK_CODE); } }).catch(()=>{});   // (v9.497) فيه نتيجة ميتة بسبب 42501؟ نبلّغه تلقائياً (قراءة فقط)
     if(gated&&st.s==='books'){ const w=AC.nextChangeIn(); if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&st.s==='books') render(); },Math.min(w+1000,2147e6)); }   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
   }
 
@@ -301,12 +319,14 @@ export async function mount(el,ctx){
       pending:'لسه ما اتبعتتش. هتتحاول تلقائياً.',done:'تم إرسال نتيجتك ✅'})[s.state];
     const up=({found:'فيه تحديث جديد للتطبيق — اضغط "تحديث" في الشريط الذهبي.',none:'التطبيق على آخر نسخة ✅'})[u]||'';
     box.className=(s.state==='done'||s.state==='off')&&!s.dead&&!s.archived?'hint':'warn';
-    const link=isLinkErr(s.err)&&!!s.dead;   // (v9.497) 42501: رسالة عربية بدل الكود التقني، ومن غير «تم الإرسال ✅» المضلّلة
-    box.innerHTML=[link?'':say,s.archived?ARCH_MSG:'',link?LINK_MSG:(s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':''),link?LINK_CODE:(s.err?'السبب (للمراجعة): '+s.err:''),up].filter(Boolean).map(esc).join('<br>');
+    const link=isLinkErr(s.err)&&(!!s.dead||ncOn());   // (v9.497) + (v9.498): لو «محتاج كود» نفس الرسالة حتى قبل ما المهمة تموت 42501: رسالة عربية بدل الكود التقني، ومن غير «تم الإرسال ✅» المضلّلة
+    box.innerHTML=[link?'':say,s.archived?ARCH_MSG:'',link?linkMsg():(s.dead?'فيه نتيجة تعذّر إرسالها، كلّم المسؤول.':''),link?LINK_CODE:(s.err?'السبب (للمراجعة): '+s.err:''),up].filter(Boolean).map(esc).join('<br>');
     btn.disabled=false; btn.textContent=lbl;
+    if(ncOn()&&!el.querySelector('#ncbar')) await render();   // (v9.498) اتعلّم «محتاج كود» أثناء الإرسال: نرسم البانر
   }
   el.onclick=async(e)=>{
     const t=e.target.closest('[data-a]'); if(!t||t.disabled) return; const a=t.dataset.a, k=Number(t.dataset.k);
+    if(a==='nclink'){ await ncLink(t); return; }   // (v9.498)
     if(a==='send'){ await sendNow(t); return; }
     if(a==='diag'){   // بدون إعادة رسم
       const box=el.querySelector('#diagbox'); if(!box) return;
