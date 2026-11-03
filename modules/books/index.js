@@ -305,7 +305,7 @@ export async function mount(el,ctx){
   function qText(qi,mine){
     const aLab=(j)=>{ const a=mine.find(x=>x.id===j.attemptId); return a?'إ'+a.chapterNum+'/م'+a.attemptNo:j.type; };
     const live=qi.filter(j=>!j.dead).length, dead=qi.filter(j=>j.dead).length;
-    return 'حيّة='+live+' · ميتة='+dead+(qi.length?' | '+qi.slice(0,6).map(j=>(j.dead?'ميتة ':'حيّة ')+aLab(j)+' ('+(j.err||'—')+'، محاولات='+j.tries+'، حُيّت='+j.revived+')').join(' | '):'')+' · محتاج كود='+(ncOn()?'نعم':'لا');
+    return 'حيّة='+live+' · ميتة='+dead+(qi.length?' | '+qi.slice(0,6).map(j=>(j.dead?'ميتة ':'حيّة ')+aLab(j)+' #'+(j.pid||'—')+' ('+(j.err||'—')+'، محاولات='+j.tries+'، حُيّت='+j.revived+')').join(' | '):'')+' · محتاج كود='+(ncOn()?'نعم':'لا');
   }
   async function refreshDiag(){
     const box=el.querySelector('#diagbox'); if(!box||box.hidden) return;
