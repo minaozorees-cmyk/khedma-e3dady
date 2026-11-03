@@ -189,13 +189,16 @@ export async function flush(){
   for(let i=0;i<50&&running;i++) await sleep(300);
   const s=await stats(); let err='';
   if(s.pending||s.dead){
-    const e=await db.get('syncErr'), lj=(await db.pending()).filter(x=>x.lastErr).pop();
+    const e0=await db.get('syncErr'), e=e0&&!BG_TYPES.has(e0.job)?e0:null, lj=(await db.pending()).filter(x=>x.lastErr&&fg(x)).pop();   // (v9.500) مهام الخلفية مش سبب يتعرض
     err=e?`${e.job} · ${[e.status,e.code,e.msg].filter(Boolean).join(' ')}`:(lj?`${lj.type} · ${lj.lastErr}`:'');
   }
   const archived=s.pending?null:await accountArchived();   // (v9.494)
   return {state:s.pending?'pending':'done',...s,err,archived};
 }
-export const stats=async()=>{ const j=await db.pending(); return {pending:j.filter(x=>!x.dead).length,dead:j.filter(x=>x.dead).length}; };
+// (v9.500) مهام الخلفية (سجل جلسة / فتح إصحاح) مش بتتحسب على المخدوم: موتها بـ42501 ما لازم يطلّع رسالة «الربط» الحمرا والنتيجة اتبعتت 201. بتظهر في «تفاصيل الرفع» (queueInfo) بس.
+export const BG_TYPES=new Set(['session.create','book_open.create']);
+const fg=(j)=>!BG_TYPES.has(j.type);
+export const stats=async()=>{ const j=(await db.pending()).filter(fg); return {pending:j.filter(x=>!x.dead).length,dead:j.filter(x=>x.dead).length}; };
 // (v9.494) هل حساب المخدوم على الجهاز ده اتأرشف؟ المخدوم بيقدر يقرا صف حسابه حتى لو مؤرشف (profiles_select_own).
 // ملاحظة: رفع النتايج بيشتغل عادي للحساب المؤرشف (owns_profile مش بيشترط archived)، لكن نتايجه ما بتظهرش للخدام ولا بتتحسب. عشان كده بنبلّغ المخدوم.
 // true/false = عرفنا، null = ما نعرفش (مش مخدوم، مفيش نت، المزامنة مقفولة، خطأ): في كل الحالات دي ما نعرضش حاجة.
@@ -564,7 +567,8 @@ export async function reviveDeadTasks(pid,opts){   // (v9.499) opts.force: زر 
     let n=0;
     for(const j of await db.pending()){
       if(pid&&j.profileId!==pid) continue;
-      if(!String(j.lastErr||'').includes('42501')) continue;
+      // (v9.500) الإحياء العادي: مهام 42501 بس (كل الأنواع، منها session.create). وضع force (المخدوم داس «إرسال»): أي مهمة ميتة/فاشلة للحساب، أياً كان سببها (المهام idempotent وبتموت تاني بعد ٦ محاولات لو لسه فاشلة)
+      if(!(opts&&opts.force)&&!String(j.lastErr||'').includes('42501')) continue;
       if(!(j.dead||j.tries>0)) continue;
       if(!(opts&&opts.force)&&(j.revived||0)>=MAX_REVIVE) continue;
       if(j.profileId&&ACC.needsCode(j.profileId)) continue;
@@ -591,6 +595,6 @@ function bootRevive(){ try{ setTimeout(()=>{ reviveDeadTasks().catch(()=>{}); },
 
 // ===== (v9.499) حالة الطابور — قراءة فقط (للرسالة وتفاصيل الرفع) =====
 export async function queueInfo(){
-  try{ return (await db.pending()).map(j=>({type:j.type,attemptId:j.attemptId||null,profileId:j.profileId||null,dead:!!j.dead,tries:j.tries||0,err:String(j.lastErr||''),revived:j.revived||0})); }
+  try{ return (await db.pending()).map(j=>({type:j.type,attemptId:j.attemptId||null,profileId:j.profileId||null,pid:String(j.profileId||'').slice(-4),dead:!!j.dead,tries:j.tries||0,err:String(j.lastErr||''),revived:j.revived||0})); }
   catch(e){ return []; }
 }
