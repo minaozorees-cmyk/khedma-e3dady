@@ -331,3 +331,10 @@ nav#nav a .t{white-space:nowrap}
 .pg-gn{font-size:.82rem}
 .pg-det{margin-top:10px;border-top:1px solid rgba(128,128,160,.25);padding-top:8px}
 .pg-solved{margin-top:6px}
+
+/* (v9.501) مؤشرات التقدّم بنطاق × فئة: تخطيط فقط (نفس الألوان والخطوط) */
+.pg-ctl{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px}.pg-ctl .fld{flex:1 1 140px;margin:0;min-width:0}
+.pg-flt{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.pg-cp{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px}
+.pg-empty{opacity:.6;text-align:center;padding:6px;min-width:96px;flex:0 0 auto}
+.pg-toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:1200;max-width:90vw;padding:9px 18px;border-radius:999px;background:var(--bg-3);color:var(--ink);border:1px solid var(--gold);box-shadow:var(--shadow-md);font-size:.85rem;font-weight:700;text-align:center}
