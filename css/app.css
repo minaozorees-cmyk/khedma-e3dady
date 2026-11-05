@@ -338,3 +338,13 @@ nav#nav a .t{white-space:nowrap}
 .pg-cp{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px}
 .pg-empty{opacity:.6;text-align:center;padding:6px;min-width:96px;flex:0 0 auto}
 .pg-toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:1200;max-width:90vw;padding:9px 18px;border-radius:999px;background:var(--bg-3);color:var(--ink);border:1px solid var(--gold);box-shadow:var(--shadow-md);font-size:.85rem;font-weight:700;text-align:center}
+/* (v9.502) الاحتفال: كونفيتي CSS + الإنجازات */
+#cele{position:fixed;inset:0;z-index:1500;pointer-events:none;overflow:hidden}
+#cele i{position:absolute;top:-24px;border-radius:2px;opacity:0;animation-name:celeFall;animation-timing-function:linear;animation-fill-mode:forwards;will-change:transform,opacity}
+#cele i.g{background:#C9A84C}#cele i.w{background:#fff}
+@keyframes celeFall{0%{opacity:1;transform:translateY(0) rotate(var(--r,0deg))}85%{opacity:1}100%{opacity:0;transform:translateY(105vh) rotate(calc(var(--r,0deg) + 540deg))}}
+#cele.cele-static{display:flex;align-items:center;justify-content:center;font:800 1.6rem/1.6 Cairo,sans-serif;color:#C9A84C;background:rgba(0,0,0,.35)}
+.ach-st{display:flex;gap:8px;margin:8px 0}.ach-st .st{flex:1}
+.bdg{display:flex;align-items:center;gap:10px;padding:10px;margin:6px 0;border-radius:12px;border:1px solid var(--line,rgba(255,255,255,.12));filter:grayscale(1);opacity:.55}
+.bdg.on{filter:none;opacity:1;border-color:#C9A84C;background:rgba(201,168,76,.10)}
+.bdg .ic{font-size:1.8rem;line-height:1}.bdg .tx{flex:1;min-width:0}.bdg small{display:block;opacity:.8}
