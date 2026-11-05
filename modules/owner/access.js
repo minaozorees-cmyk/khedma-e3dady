@@ -40,6 +40,7 @@ function verify(rows,exp){
 function saveErr(x){
   if(x&&x.vmsg) return x.vmsg;
   const b=(x&&x.body)||{};
+  if(b.code==='PGRST204'||b.code==='42703') return 'ما اتحفظش ❌ — السيرفر لسه ما فيهوش عمود read_minutes. شغّل سطر SQL من ملف SETUP-v9.502.md في Supabase الأول.';
   if(b.code==='23514') return 'ما اتحفظش ❌ — السيرفر رفض الميعاد (لازم الفتح أو القفل على الأقل، والقفل بعد الفتح).';
   const d=b.message||b.details||b.hint;
   return 'ما اتحفظش ❌ — '+errMsg(x)+(d?' ['+d+']':'');
@@ -105,6 +106,9 @@ export async function mount(el,{role}={}){
           <div class="fld"><label>يقفل <small>(اختياري)</small></label><input type="datetime-local" data-c="${N}" value="${toLocal(a&&a.closes_at)}"></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" style="${SB}" data-a="save" data-n="${N}">حفظ الميعاد</button>${a?`<button class="x" data-a="clear" data-n="${N}">مسح الميعاد</button>`:''}</div>
           ${stBox(N)}
+          <div class="fld" style="margin-top:10px"><label>⏱ وقت القراءة بالدقايق <small>(فاضي = وقت السفر: ${n(b.readMinutes)} د)</small></label>
+            ${a?`<input type="number" inputmode="numeric" min="0" max="60" step="1" data-rm="${N}" value="${a.read_minutes==null?'':esc(String(a.read_minutes))}" placeholder="${esc(String(b.readMinutes))}">
+            <button class="btn sec" style="${SB}" data-a="rmsave" data-n="${N}">حفظ وقت القراءة</button>`:'<div class="hint">حدّد ميعاد فتح أو قفل للإصحاح الأول (فوق) وبعدها تقدر تحدد له وقت قراءة مخصص.</div>'}</div>
           <div style="margin-top:10px">${cd?`<span dir="ltr" style="font-family:monospace;font-weight:700;letter-spacing:2px">${esc(fmtCode(cd.code))}</span>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn sec" style="${SB}" data-a="copy" data-n="${N}">📋 نسخ</button><button class="btn sec" style="${SB}" data-a="send" data-n="${N}">📤 إرسال</button><button class="btn sec" style="${SB}" data-a="gen" data-n="${N}">🔄 كود جديد</button><button class="x" data-a="revoke" data-n="${N}">إلغاء الكود</button></div>`
             :`<button class="btn sec" style="${SB}" data-a="gen" data-n="${N}">🔑 توليد كود</button>`}</div></div>`; }).join('')}</div>`}
@@ -137,6 +141,7 @@ export async function mount(el,{role}={}){
     const t=e.target, d=t.dataset||{};
     if(t.id==='bk'){ S.bid=t.value; S.ok=''; S.err=''; S.pv=null; S.st={}; paint(); return; }
     if(d.po||d.pc){ const r=S.pv&&S.pv.find(x=>x.N===Number(d.po||d.pc)); if(r){ if(d.po) r.o=t.value; else r.c=t.value; } return; }
+    if(d.rm){ setSt(Number(d.rm),'dirty','✏️ في تعديل لسه ما اتحفظش — اضغط «حفظ وقت القراءة»'); return; }
     if(d.o||d.c){ setSt(Number(d.o||d.c),'dirty','✏️ في تعديل لسه ما اتحفظش — اضغط «حفظ الميعاد»'); return; }
     const k={as:'start',ad:'date',at:'ot',ac:'ct'}[t.id]; if(!k) return;
     S.f[k]=k==='start'?Number(t.value):t.value; if(S.pv){ S.pv=null; S.ok=''; paint(); }   // تغيير المدخلات يلغي المعاينة القديمة
@@ -184,8 +189,18 @@ export async function mount(el,{role}={}){
         const row={book_id:b.id,chapter_num:N,opens_at:oi,closes_at:ci,updated_at:new Date().toISOString()};
         await run(t,N,async()=>{ await upsertAcc([row]); return `✅ اتحفظ إصحاح ${n(N)} (توقيت القاهرة) — يفتح: ${oi?D(oi):'—'} · يقفل: ${ci?D(ci):'—'}`; });
       }
+      else if(a==='rmsave'){
+        const raw=String(inp('rm',N).value).trim(); let v=null;
+        if(raw!==''){ if(!/^\d{1,2}$/.test(raw)||Number(raw)>60){ fail(N,'وقت القراءة رقم صحيح من ٠ إلى ٦٠ دقيقة (٠ = بدون وقت قراءة). سيبه فاضي علشان يرجع لوقت السفر.'); return; } v=Number(raw); }
+        await run(t,N,async()=>{
+          const out=await api(`${AP}?book_id=eq.${q(b.id)}&chapter_num=eq.${N}`,{method:'PATCH',body:{read_minutes:v,updated_at:new Date().toISOString()},prefer:'return=representation'});
+          if(!Array.isArray(out)||!out.length) throw VE(`إصحاح ${n(N)}: السيرفر ما لقاش الصف (حدّد ميعاد للإصحاح الأول) أو مفيش صلاحية. اضغط «تحديث».`);
+          if((out[0].read_minutes==null?null:Number(out[0].read_minutes))!==v) throw VE(`إصحاح ${n(N)}: السيرفر خزّن قيمة مختلفة عن اللي كتبتها. راجع.`);
+          return v==null?`✅ إصحاح ${n(N)}: رجع لوقت السفر (${n(b.readMinutes)} د).`:v===0?`✅ إصحاح ${n(N)}: بدون وقت قراءة.`:`✅ إصحاح ${n(N)}: وقت القراءة ${n(v)} دقيقة.`; });
+      }
       else if(a==='clear'){
-        if(!confirm('مسح الميعاد؟ الإصحاح هيرجع مفتوح.')) return;
+        const hasRm=S.acc.some(x=>x.book_id===b.id&&x.chapter_num===N&&x.read_minutes!=null);
+        if(!confirm('مسح الميعاد؟ الإصحاح هيرجع مفتوح.'+(hasRm?' (وقت القراءة المخصص للإصحاح هيتمسح معاه.)':''))) return;
         await run(t,N,async()=>{ const k=await delAcc(`book_id=eq.${q(b.id)}&chapter_num=eq.${N}`); if(!k) throw VE('ما اتمسحش: السيرفر ما لقاش الميعاد (أو مفيش صلاحية). اضغط «تحديث».'); return `✅ اتمسح ميعاد إصحاح ${n(N)}.`; });
       }
       else if(a==='bulk'){
