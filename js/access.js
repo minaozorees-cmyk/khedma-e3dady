@@ -10,7 +10,8 @@ export const MAX_TRIES=10, WINDOW=3600e3;
 let map={}, hashes={}, hashesAt=0, unl={}, off=0;
 const build=(rows)=>{ const m={}; for(const r of rows||[]){ if(!r||r.book_id==null) continue;
   const o=r.opens_at?Date.parse(r.opens_at):null, c=r.closes_at?Date.parse(r.closes_at):null;
-  m[K(r.book_id,r.chapter_num)]={o:Number.isFinite(o)?o:null,c:Number.isFinite(c)?c:null}; } return m; };
+  const rm=r.read_minutes==null?null:Number(r.read_minutes);   // (v9.502) وقت قراءة الإصحاح (دقائق) أو null = وقت السفر
+  m[K(r.book_id,r.chapter_num)]={o:Number.isFinite(o)?o:null,c:Number.isFinite(c)?c:null,rm:Number.isInteger(rm)&&rm>=0&&rm<=60?rm:null}; } return m; };
 const buildH=(rows)=>{ const m={}; for(const r of rows||[]){ if(r&&r.book_id!=null&&r.salt&&r.hash) m[K(r.book_id,r.chapter_num)]={s:String(r.salt),h:String(r.hash),u:r.updated_at||''}; } return m; };
 // من الكاش المحلي فقط (سريع، يشتغل أوفلاين)
 export async function load(){
@@ -41,6 +42,8 @@ export function lock(bid,num){
 // (v9.46) كل المواعيد المخزّنة: [{bid,num,o,c}] (o/c بالمللي ثانية أو null) — للتنبيه المحلي البديل (chapter-alerts.js)
 export function schedule(){ return Object.keys(map).map(k=>{ const i=k.lastIndexOf('|'), a=map[k]; return {bid:k.slice(0,i),num:Number(k.slice(i+1)),o:a.o,c:a.c}; }); }
 export const isLocked=(bid,num)=>!!lock(bid,num);
+// (v9.502) وقت قراءة الإصحاح بالدقايق لو المالك حدده، وإلا null (المستدعي يرجع لوقت السفر)
+export const readMin=(bid,num)=>{ const a=map[K(bid,num)]; return a&&a.rm!=null?a.rm:null; };
 // (v9.39) أقرب لحظة قادمة (فتح أو قفل) من المواعيد المخزّنة، بالمللي ثانية من الآن؛ null لو مفيش. تُستخدم لتحديث قائمة الأسفار تلقائياً عند حلول الميعاد.
 export function nextChangeIn(){
   const t=now(); let best=null;

@@ -489,7 +489,13 @@ export async function booksGet(id){ const x=await pub(`/rest/v1/books?id=eq.${en
 
 // ===== (v9.21) مواعيد وأكواد الإصحاحات =====
 // accessSyncTimes (accessList سابقاً): قراءة عامة (null = أوفلاين/فشل/الـSQL لسه ما اتشغّلش → المستدعي يرجع للكاش). serverNow: ملّي ثانية أو null.
-export const accessSyncTimes=()=>pub('/rest/v1/chapter_access?select=book_id,chapter_num,opens_at,closes_at,updated_at&order=book_id,chapter_num');
+// (v9.502) read_minutes عمود إضافي: لو السيرفر لسه ما فيهوش العمود (400) نرجع للطلب القديم بدونه، فالمواعيد ما تضيعش أبداً.
+export async function accessSyncTimes(){
+  const base='/rest/v1/chapter_access?select=book_id,chapter_num,opens_at,closes_at,updated_at', ord='&order=book_id,chapter_num';
+  const r=await pub(base+',read_minutes'+ord);
+  if(r!==null) return r;
+  return pub(base+ord);
+}
 export const accessList=accessSyncTimes; // اسم v9.21 (توافق)
 // v9.22: بصمات الأكواد (SHA-256 + salt) فقط؛ الكود الخام ما بيطلعش من chapter_codes. null = أوفلاين/فشل/الـSQL لسه ما اتشغّلش.
 export const accessSyncCodes=()=>pub('/rest/v1/chapter_code_hashes?select=book_id,chapter_num,salt,hash,updated_at&order=book_id,chapter_num');
