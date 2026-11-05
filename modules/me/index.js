@@ -8,6 +8,9 @@ import * as LIB from '../../js/library.js';
 import * as R from '../../js/results.js';
 import * as EX from '../../js/exam-session.js';
 import {loadAll} from '../../js/books.js';
+import * as AC from '../../js/access.js';
+import {computeBadges} from '../../js/badges.js';   // (v9.502)
+import * as CE from '../../js/celebrate.js';
 import * as PUSH from '../../js/push.js';
 import {esc} from '../../js/consts.js';
 import {APP_VERSION} from '../../js/version.js';   // (v9.497)
@@ -32,6 +35,14 @@ export async function mount(el){
   const lastBook=last&&idx.find(x=>x.id===last.id);
   const stats=agpeyaStats(ag||{});
   const books=bookData&&bookData.books||[];
+  // (v9.502) الإنجازات: حساب محلي بالكامل من نتائج المخدوم + جدول المواعيد المخزّن. أي فشل = الكارت ما يظهرش والصفحة شغالة.
+  let ach=null; try{ await AC.load(); ach=computeBadges({attempts,schedule:AC.schedule(),books,now:Date.now()}); }catch(e){ ach=null; }
+  const sndLabel=()=>CE.soundOn()?'🔊 صوت الاحتفال: شغّال':'🔇 صوت الاحتفال: مقفول';
+  const achHtml=ach?`<div class="card2"><b>🏆 إنجازاتي</b>
+      <div class="stats ach-st"><div class="st"><b>${ar(ach.stats.solved)}</b><small>إصحاح محلول</small></div><div class="st"><b>${ar(ach.stats.weekStreak)}</b><small>سلسلة الأسابيع</small></div></div>
+      ${ach.badges.map(x=>`<div class="bdg${x.unlocked?' on':''}"><span class="ic">${x.icon}</span><div class="tx"><b>${esc(x.name)}</b><small>${esc(x.desc)}</small></div><small>${x.unlocked?'✅':ar(x.progress)+'/'+ar(x.goal)}</small></div>`).join('')}
+      <button class="btn sec" id="snd" type="button">${sndLabel()}</button>
+      <div class="hint">الصوت مقفول لحد ما تفتحه. لو موبايلك على الصامت ممكن ما تسمعش النغمة.</div></div>`:'';
   const completed=new Set(attempts.map(a=>a.bookId+'|'+a.chapterNum));
   const allChapters=books.reduce((n,b)=>n+(b.chapters||[]).length,0);
   const doneCount=completed.size;
@@ -86,6 +97,7 @@ export async function mount(el){
       <div id="pinbox"></div>
       <button class="btn sec" id="rmv" style="color:var(--rust)">🗑️ إزالة هذا الحساب من الجهاز</button>
       <div class="hint" id="acm"></div></div>
+    ${achHtml}
     <div class="card2"><b>ℹ️ معلومات التطبيق</b>
       <div class="hint" id="appver">رقم النسخة: ${esc(APP_VERSION)}</div>
       <div class="hint" id="lnkst">حالة الاتصال: جارٍ التحقق…</div></div></div>`;
@@ -93,6 +105,7 @@ export async function mount(el){
   SY.linkStatus().catch(()=>null).then(v=>{ const x=el.querySelector('#lnkst'); if(!x) return;
     x.textContent=v===true?'حالة الاتصال: ✅ الجهاز مربوط بحسابك':v===false?'حالة الاتصال: ⚠️ الجهاز مش مربوط بحسابك. كلّم خادمك وابعتله رقم النسخة.':'حالة الاتصال: تعذّر التحقق الآن (تأكد من النت)';
     if(v===false) x.className='warn'; }).catch(()=>{});
+  { const sb=el.querySelector('#snd'); if(sb) sb.onclick=()=>{ CE.setSound(!CE.soundOn()); sb.textContent=sndLabel(); if(CE.soundOn()) CE.tone(); }; }
   const $=(s)=>el.querySelector(s), msg=(t)=>{ const m=$('#bm'); if(m) m.textContent=t; };
   el.onclick=(e)=>{ const t=e.target.closest('[data-go]'); if(t) location.hash='#/'+t.dataset.go; };
   const doExport=(share)=>async()=>{ try{ await B.exportFile(share); msg('تم حفظ النسخة ✅'); }catch(e){ if(e&&e.name!=='AbortError') msg('تعذّر حفظ الملف'); } };
