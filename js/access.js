@@ -7,7 +7,7 @@ import * as db from './db.js';
 import * as SY from './sync.js';
 const K=(bid,num)=>bid+'|'+num;
 export const MAX_TRIES=10, WINDOW=3600e3;
-let map={}, hashes={}, hashesAt=0, unl={}, off=0;
+let map={}, hashes={}, hashesAt=0, unl={}, off=0, solved=new Set();
 const build=(rows)=>{ const m={}; for(const r of rows||[]){ if(!r||r.book_id==null) continue;
   const o=r.opens_at?Date.parse(r.opens_at):null, c=r.closes_at?Date.parse(r.closes_at):null;
   const rm=r.read_minutes==null?null:Number(r.read_minutes);   // (v9.502) وقت قراءة الإصحاح (دقائق) أو null = وقت السفر
@@ -31,12 +31,18 @@ export async function refresh(){
 if(typeof addEventListener==='function') addEventListener('online',()=>{ refresh().catch(()=>{}); }); // النت رجع: حدّث
 export const now=()=>Date.now()+off;
 // null = مفتوح، وإلا {why:'before'|'after', at:وقت الفتح أو القفل بالمللي ثانية}
+// (v9.503) إصحاح المخدوم حلّه (محاولة في النتائج) ما يتقفلش بميعاد القفل (closes_at). قبل الفتح يفضل مقفول. attempts = results.all() للحساب الحالي.
+export function setSolved(attempts){
+  const s=new Set(); for(const a of Array.isArray(attempts)?attempts:[]) if(a&&a.bookId!=null&&a.chapterNum>0) s.add(K(a.bookId,a.chapterNum));
+  solved=s;
+}
+export const isSolved=(bid,num)=>solved.has(K(bid,num));
 export function lock(bid,num){
   if(unl[K(bid,num)]) return null;
   const a=map[K(bid,num)]; if(!a) return null;
   const t=now();
   if(a.o!=null&&t<a.o) return {why:'before',at:a.o};
-  if(a.c!=null&&t>=a.c) return {why:'after',at:a.c};
+  if(a.c!=null&&t>=a.c) return solved.has(K(bid,num))?null:{why:'after',at:a.c};
   return null;
 }
 // (v9.46) كل المواعيد المخزّنة: [{bid,num,o,c}] (o/c بالمللي ثانية أو null) — للتنبيه المحلي البديل (chapter-alerts.js)
