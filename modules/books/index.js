@@ -11,6 +11,7 @@ import {n} from '../../js/dates.js';
 import * as TTS from '../../js/tts.js';
 import * as T from '../../js/solve-timer.js';
 import * as RS from '../../js/read-session.js';
+import * as CE from '../../js/celebrate.js';   // (v9.502) كونفيتي بعد إنهاء الامتحان
 const ARCH_MSG='⚠️ حسابك اتأرشف: نتيجتك اتسجّلت بس ما بتظهرش للخدام ولا بتتحسب. استخدم حسابك المعتمد بالكود اللي اتبعتلك (اضغط «عندي كود» واكتب اسمك والكود)، أو كلّم خادمك.';   // (v9.494)   // (v9.489) وقت القراءة Pause/Resume
 import * as db from '../../js/db.js';
 import {APP_VERSION} from '../../js/version.js';   // (v9.497)
@@ -108,11 +109,13 @@ export async function mount(el,ctx){
   }
   // (v9.489) وقت القراءة بقى Pause/Resume: بيعدّ والتطبيق ظاهر بس (performance.now مش ساعة الحيط)، ويتحفظ لكل إصحاح في read_session.
   // لو الجلسة عدّت ٦ ساعات من أول فتح، أو المخدوم كان خلّص القراءة قبل كده في نفس الجلسة، بتتعامل بالقاعدة دي.
+  // (v9.502) وقت القراءة: الإصحاح (من مواعيد المالك) ← وإلا وقت السفر (الافتراضي ٣، و٠ = بدون) — مفيش كاش للإصحاح = وقت السفر
+  const rMin=(b,num)=>{ let v=null; try{ v=AC.readMin(b.id,num); }catch(e){} return v!=null?v:Math.max(0,Number(b.readMinutes)||0); };
   function enterRead(bid,num){
     const b=books.find(x=>x.id===bid), now=Date.now(); st={s:'read',bid,num}; rt=null; rStop();
-    const need=Number(b.readMinutes)>0; let it=RS.get(rmap,bid,num,now);
+    const rm=rMin(b,num), need=rm>0; let it=RS.get(rmap,bid,num,now);
     if(!it&&need) unlocked.delete(ukey());   // الجلسة انتهت (> ٦ ساعات من أول فتح): تبدأ من الأول
-    if(it&&(it.done||it.el*1000>=b.readMinutes*60000)) unlocked.add(ukey());   // خلّص القراءة قبل كده
+    if(it&&(it.done||it.el*1000>=rm*60000)) unlocked.add(ukey());   // خلّص القراءة قبل كده
     if(need&&!unlocked.has(ukey())){
       if(!it){ rmap=RS.start(rmap,bid,num,now); it=RS.get(rmap,bid,num,now); }
       rt=T.create(it.el); rt.b=bid; rt.n=num; rPersist();
@@ -137,6 +140,7 @@ export async function mount(el,ctx){
     SY.finishDiag({at:Date.now(),build:APP_VERSION,bid:st.bid,num:st.num,att:att.attemptNo,hasTimer:!!tm,el:elBefore,dur:att.durationSec==null?null:att.durationSec,fix:fixed,src:source});   // (v9.484) تشخيص مؤقت: ما حسبه finish()
     await S.clear(); sess=null;
     st.res=r; st.att=att; st.sum=R.summary(await R.all(),st.bid,st.num); st.s='result';
+    CE.maybe(att,source);   // (v9.502) احتفال: أول محاولة + درجة > ٠ + إنهاء عادي. ما بيرميش خطأ
   }
 
   // ===== العرض =====
@@ -222,7 +226,7 @@ export async function mount(el,ctx){
   };
   // ===== (v9.489) عدّاد القراءة: يقف لما التطبيق يروح للخلفية ويكمل من نفس الرقم =====
   const rdLabel=(ms)=>'⏳ باقي للقراءة: '+mmss(ms);
-  const rTotalMs=()=>{ const b=book(); return Math.max(0,Number(b&&b.readMinutes)||0)*60000; };
+  const rTotalMs=()=>{ const b=book(); return b?rMin(b,st.num)*60000:0; };
   const rMine=()=>!!rt&&rt.b===st.bid&&rt.n===st.num;
   const rLeftMs=()=>{ if(st.s!=='read'||!rMine()||unlocked.has(ukey())) return 0; if(T.running(rt)) T.tick(rt,pnow()); return Math.max(0,rTotalMs()-rt.el*1000); };
   const rStop=()=>{ if(rtk){ clearInterval(rtk); rtk=null; } };
