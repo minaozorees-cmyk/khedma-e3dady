@@ -54,6 +54,8 @@ export async function mount(el,ctx){
   const findCh=(bid,num)=>{ const b=books.find(x=>x.id===bid), c=b&&b.chapters.find(x=>x.chapterNum===num); return c?{b,c}:null; };
   const ukey=()=>st.bid+'|'+st.num;
   // (v9.39) للمخدوم: السفر يظهر فقط لو فيه إصحاح مفتوح الآن (بميعاد حلّ أو بدون ميعاد أو مفتوح بكود). الطاقم يرى كل الأسفار. الوقت من ساعة السيرفر/الموبايل ويشتغل أوفلاين.
+  // (v9.503) مرجع الآية: أرقام عربية داخل <bdi> علشان ما يتقلبش ترتيبه في النص العربي (كان بيظهر «12 :10»)
+  const refHtml=(r)=>'<bdi>'+esc(String(r==null?'':r).replace(/\d/g,(d)=>'٠١٢٣٤٥٦٧٨٩'[d]))+'</bdi>';
   const bookOpen=(b)=>b.chapters.some(c=>!AC.isLocked(b.id,c.chapterNum));
   const shownBooks=()=>gated?books.filter(bookOpen):books;
   // (v9.39) تكبير/تصغير الخط (نسبة مئوية) — يُحفظ على الجهاز
@@ -139,7 +141,8 @@ export async function mount(el,ctx){
     const fixed=await ensureDuration(att,durSec);   // (v9.485) لو results.js على الجهاز قديم ومابيحفظش الوقت: نصلّحه فوراً قبل الرفع
     SY.finishDiag({at:Date.now(),build:APP_VERSION,bid:st.bid,num:st.num,att:att.attemptNo,hasTimer:!!tm,el:elBefore,dur:att.durationSec==null?null:att.durationSec,fix:fixed,src:source});   // (v9.484) تشخيص مؤقت: ما حسبه finish()
     await S.clear(); sess=null;
-    st.res=r; st.att=att; st.sum=R.summary(await R.all(),st.bid,st.num); st.s='result';
+    const allR=await R.all(); try{ AC.setSolved(allR); }catch(e){}   // (v9.503) الإصحاح اللي لسه اتحلّ ما يتقفلش بعد كده
+    st.res=r; st.att=att; st.sum=R.summary(allR,st.bid,st.num); st.s='result';
     CE.maybe(att,source);   // (v9.502) احتفال: أول محاولة + درجة > ٠ + إنهاء عادي. ما بيرميش خطأ
   }
 
@@ -186,13 +189,14 @@ export async function mount(el,ctx){
     async med(){   // (v9.38) بعد قراءة الإصحاح: الآية ثم التأمل، وبعدها الأسئلة
       const c=chap(), m=c.meditation;
       return `<div class="gate">${zbar()}<h3 class="ttl">${esc(book().title)} — إصحاح ${n(c.chapterNum)}</h3>
-        <div class="card2"><b>آية الإصحاح</b><p class="ver">«${esc(m.verseText)}» — ${esc(m.verseRef)}</p></div>
+        <div class="card2"><b>آية الإصحاح</b><p class="ver">«${esc(m.verseText)}» — ${refHtml(m.verseRef)}</p></div>
         <div class="card2"><b>تأمل</b><p class="ver">${me(m.meditation)}</p><p class="ver">${me(m.comment)}</p><p class="ver">💌 ${me(m.message)}</p></div>
         <button class="btn" data-a="start">ابدأ الامتحان (${n(examN(book(),c))} سؤال)</button>${back('toRead','رجوع للقراءة')}</div>`;
     },
     async verses(){   // (v9.38) آيات السفر: آية التأمل لكل إصحاح (المقفول بمواعيد يظهر 🔒 للمخدوم)
-      const b=book(), rows=b.chapters.filter(c=>c.meditation).map(c=>{ const lk=gated&&AC.isLocked(b.id,c.chapterNum), m=c.meditation;
-        return `<div class="card2"><b>إصحاح ${n(c.chapterNum)}</b>${lk?'<p class="hint">🔒 مقفول لحد ميعاده</p>':`<p class="ver">«${esc(m.verseText)}» — ${esc(m.verseRef)}</p>`}</div>`; }).join('');
+      // (v9.503) الآية تظهر لو الإصحاح اتفتح قبل كده (حتى لو اتقفل بعدها) أو المخدوم حلّه؛ المقفول بس اللي لسه ما اتفتحش
+      const b=book(), rows=b.chapters.filter(c=>c.meditation).map(c=>{ const l=gated?AC.lock(b.id,c.chapterNum):null, lk=!!l&&l.why==='before'&&!AC.isSolved(b.id,c.chapterNum), m=c.meditation;
+        return `<div class="card2"><b>إصحاح ${n(c.chapterNum)}</b>${lk?'<p class="hint">🔒 لسه ما اتفتحش</p>':`<p class="ver">«${esc(m.verseText)}» — ${refHtml(m.verseRef)}</p>`}</div>`; }).join('');
       return `<div class="gate"><h3 class="ttl">📜 آيات ${esc(b.title)}</h3>${rows||'<div class="hint">لا توجد آيات بعد.</div>'}${back('toChap','رجوع للإصحاحات')}</div>`;
     },
     async exam(){
@@ -442,7 +446,7 @@ export async function mount(el,ctx){
   };
 
   // v9.21: مواعيد الإصحاحات — الكاش فوراً (يشتغل أوفلاين) والتحديث من السيرفر في الخلفية
-  if(gated){ await AC.load(); AC.refresh().then(ok=>{ if(ok&&(st.s==='books'||st.s==='chapters'||st.s==='verses'||st.s==='locked')&&el.isConnected) render(); }).catch(()=>{}); }
+  if(gated){ await AC.load(); try{ AC.setSolved(await R.all()); }catch(e){} AC.refresh().then(ok=>{ if(ok&&(st.s==='books'||st.s==='chapters'||st.s==='verses'||st.s==='locked')&&el.isConnected) render(); }).catch(()=>{}); }
   // عند الفتح: نحمّل الجلسة المحفوظة، ونغلق المنتهية (> ٦ ساعات) تلقائياً
   rmap=await RS.load().catch(()=>({}));   // (v9.489) جلسات القراءة المحفوظة (المنتهية > ٦ ساعات بتتشال)
   sess=await S.load();
