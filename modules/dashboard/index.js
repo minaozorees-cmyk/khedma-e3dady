@@ -4,7 +4,7 @@ const EXAM_MSG='سلام ونعمة يا {الاسم} ❤️ بقالك فترة
 import {esc} from '../../js/consts.js';
 import * as SY from '../../js/sync.js';   // (v9.496) resultsFirst فقط (قراءة)
 import {n} from '../../js/dates.js';
-import {buildScoped,scopeOptions,openChapter,ringSvg,GRADES} from '../../js/progress.js';   // (v9.496) دائرة التقدّم (v9.501: نطاق × فئة)
+import {buildScoped,scopeOptions,openChapter,ringSvg,GRADES,activeIds,activeRows} from '../../js/progress.js';   // (v9.496) دائرة التقدّم (v9.501: نطاق × فئة)
 const when=(x)=>x?dayDiff(x):null;
 export async function mount(el,{role}={}){
   if(!['servant','priest','owner'].includes(role)){el.innerHTML='<div class="ph">الصفحة غير متاحة.</div>';return;}
@@ -82,20 +82,30 @@ export async function mount(el,{role}={}){
   const scopeWord=role==='servant'?'المسندين لك':'كل المخدومين';
   const ring=(x,d)=>`<div class="pg-ring lv-${x.level.key}" style="--d:${d}px">${ringSvg(x.pct)}<div class="pg-in"><b>${n(x.pct)}٪</b><small>${x.level.emoji} ${x.level.label}</small></div></div>`;
   const rep=(u)=>[...u.accounts].sort((a,b)=>((phoneOf.get(b.id)?1:0)-(phoneOf.get(a.id)?1:0))||((createdOf.get(b.id)||0)-(createdOf.get(a.id)||0)))[0].id;   // الحساب اللي ليه رقم، والأحدث
-  const PG={in:null,scope:{type:'open',book_id:'',chapter_num:0},group:{gender:'all',grade:'all'},sel:'',books:null,busy:false,toast:'',th:null};
+  const PG={in:null,scope:{type:'open',book_id:'',chapter_num:0},group:{gender:'all',grade:'all'},sel:'',books:null,busy:false,toast:'',th:null,act:null,bp:null};
   const short=(g)=>String(g).replace(' الإعدادي','');
   const glabel=(g)=>[g.gender==='boys'?'أولاد':g.gender==='girls'?'بنات':'',g.grade!=='all'?short(g.grade):''].filter(Boolean).join(' · ')||scopeWord;
   const bookNums=()=>PG.books?PG.books.chapters:{}, bookTitles=()=>PG.books?PG.books.titles:{};
-  const calc=()=>buildScoped({students:members,results:PG.in.results,access:PG.in.access,now:Date.now(),scope:PG.scope,bookChapters:bookNums(),bookTitles:bookTitles(),group:PG.group});
-  const optsOf=()=>scopeOptions({results:PG.in.results,access:PG.in.access,now:Date.now(),bookChapters:bookNums(),bookTitles:bookTitles()});
+  // (v9.505) كل حسابات النطاق (دايرة المفتوح، القوايم، شارات «متأخر») على الأسفار النشطة بس (PG.act)؛ لو مش معروفة بتفضل الصفوف زي ما هي
+  const rowsOf=(a)=>activeRows(a,PG.act);
+  const calc=()=>buildScoped({students:members,results:rowsOf(PG.in.results),access:rowsOf(PG.in.access),now:Date.now(),scope:PG.scope,bookChapters:bookNums(),bookTitles:bookTitles(),group:PG.group});
+  const optsOf=()=>scopeOptions({results:rowsOf(PG.in.results),access:rowsOf(PG.in.access),now:Date.now(),bookChapters:bookNums(),bookTitles:bookTitles()});
   // قائمة إصحاحات الأسفار الكاملة بتتحمّل مرة واحدة وقت الحاجة (سفر/إصحاح محدد)؛ لو فشلت نكمّل بتقدير من المواعيد والنتايج
-  function ensureBooks(){
-    if(PG.books||PG.busy) return; PG.busy=true;
-    import('../../js/books.js').then(m=>m.loadAll()).then(r=>{
+  // (v9.505) بتتحمّل مرة واحدة أول ما اللوحة تفتح (مش بس لما تختار سفر): الأسفار الحقيقية (chapters/titles من books.js) + ids النشطة (SY.booksList = جدول books على السيرفر أولاً).
+  // ما بترميش خطأ؛ لو الاتنين فشلوا PG.act=null والسلوك القديم (تقدير من المواعيد والنتايج).
+  function loadBooks(){
+    if(PG.bp) return PG.bp; PG.busy=true;
+    PG.bp=Promise.all([
+      import('../../js/books.js').then(m=>m.loadAll()).catch(()=>null),
+      Promise.resolve().then(()=>typeof SY.booksList==='function'?SY.booksList():null).catch(()=>null)
+    ]).then(([r,list])=>{
       const chapters={},titles={}; for(const bk of ((r&&r.books)||[])){ chapters[bk.id]=(bk.chapters||[]).map(c=>c.chapterNum); titles[bk.id]=bk.title; }
-      PG.books={chapters,titles};
-    }).catch(()=>{ PG.books={chapters:{},titles:{},failed:true}; }).then(()=>{ PG.busy=false; paintPg(); });
+      PG.books=r?{chapters,titles}:{chapters:{},titles:{},failed:true};
+      PG.act=activeIds({serverIds:Array.isArray(list)?list.map(x=>x&&x.id):null,loadedIds:Object.keys(chapters)});
+    }).catch(()=>{ PG.books={chapters:{},titles:{},failed:true}; PG.act=null; }).then(()=>{ PG.busy=false; });
+    return PG.bp;
   }
+  const ensureBooks=()=>{ loadBooks().then(()=>paintPg()); };
   function fixChapter(bk,oc){
     if(!bk){ PG.scope.chapter_num=0; return; } const c=bk.chapters;
     if(!c.includes(PG.scope.chapter_num)) PG.scope.chapter_num=(oc&&oc.book_id===bk.book_id&&c.includes(oc.chapter_num))?oc.chapter_num:c[c.length-1];
@@ -103,8 +113,8 @@ export async function mount(el,{role}={}){
   function normScope(){   // يضمن إن السفر/الإصحاح المختار لسه موجود في القوايم
     if(PG.scope.type==='open') return;
     const o=optsOf(); let bk=o.find(x=>x.book_id===PG.scope.book_id);
-    if(!bk){ const oc=openChapter(PG.in.access,Date.now()); bk=o.find(x=>oc&&x.book_id===oc.book_id)||o[0]; PG.scope.book_id=bk?bk.book_id:''; }
-    if(PG.scope.type==='chapter') fixChapter(bk,openChapter(PG.in.access,Date.now()));
+    if(!bk){ const oc=openChapter(rowsOf(PG.in.access),Date.now()); bk=o.find(x=>oc&&x.book_id===oc.book_id)||o[0]; PG.scope.book_id=bk?bk.book_id:''; }
+    if(PG.scope.type==='chapter') fixChapter(bk,openChapter(rowsOf(PG.in.access),Date.now()));
   }
   function setType(type){ PG.scope.type=type; if(type!=='open') ensureBooks(); paintPg(); }
   async function copyTxt(t){
@@ -164,7 +174,10 @@ export async function mount(el,{role}={}){
     return frame(`<div class="hint">${esc(scopeWord)} · ${scopeTxt}</div><div class="pg-main">${big}${cmp}</div>${minis}${ng}${det}`);
   }
   function paintPg(){ const b=$('#pgbox'); if(!b) return; try{ b.innerHTML=PG.in?pgHtml():''; }catch(e){ b.innerHTML=''; } }
-  progP.then(d=>{ try{ if(!d||!root.isConnected) return; PG.in=d; paintPg(); }catch(e){ try{ const b=$('#pgbox'); if(b) b.innerHTML=''; }catch(x){} } });
+  // (v9.505) الرسم بعد ما الاتنين يجهزوا (بيانات التقدّم + قايمة الأسفار النشطة) عشان سفر محذوف ما يظهرش لحظة؛ مهلة ٦ ثواني للأسفار، ولو اتأخرت بنعيد الرسم لما توصل
+  const booksP=loadBooks(), booksWait=new Promise(r=>{ const t=setTimeout(r,6000); booksP.then(()=>{ clearTimeout(t); r(); }); });
+  Promise.all([progP,booksWait]).then(([d])=>{ try{ if(!d||!root.isConnected) return; PG.in=d; paintPg(); }catch(e){ try{ const b=$('#pgbox'); if(b) b.innerHTML=''; }catch(x){} } });
+  booksP.then(()=>{ try{ if(PG.in&&root.isConnected) paintPg(); }catch(e){} });
   root.onclick=e=>{
     const t=e.target.closest('[data-go],[data-profile],[data-a]');
     if(!t)return;
