@@ -109,6 +109,17 @@ export function scopeOptions({access=[],results=[],bookChapters={},bookTitles={}
   return [...ids].map(id=>({book_id:id,title:(bookTitles&&bookTitles[id])||title.get(id)||id,chapters:requiredChapters(id,{access,results,bookChapters,now}).nums}))
     .filter(b=>b.chapters.length).sort((a,b)=>collator.compare(a.title,b.title));
 }
+// (v9.505) الأسفار النشطة بس في الداشبورد: السفر المحذوف (جدول books) بتفضل له صفوف chapter_access ونتايج (مقصود)، وكانت بتدخل في قوايم النطاق ودايرة المفتوح والشارات.
+// activeIds: ids من السيرفر (جدول books) أولاً، وإلا من قايمة الأسفار المحمّلة (books.js)؛ الاتنين فاضيين/فاشلين = null (مفيش فلتر: السلوك القديم، لأننا ما نعرفش).
+export function activeIds({serverIds=null,loadedIds=null}={}){
+  const pick=(a)=>{ const s=new Set((Array.isArray(a)?a:[]).map(x=>x==null?'':String(x)).filter(Boolean)); return s.size?s:null; };
+  return pick(serverIds)||pick(loadedIds);
+}
+// activeRows: صفوف (chapter_access أو النتايج) للأسفار النشطة بس. ids فاضي/null = الصفوف زي ما هي.
+export function activeRows(rows,ids){
+  const r=Array.isArray(rows)?rows:[]; if(!(ids instanceof Set)||!ids.size) return r;
+  return r.filter(x=>x&&ids.has(String(x.book_id)));
+}
 export const SUB_DEFS=[{key:'boys',label:'أولاد',gender:'boys'},{key:'girls',label:'بنات',gender:'girls'},{key:'g1',label:'الأول',grade:GRADES[0]},{key:'g2',label:'الثاني',grade:GRADES[1]},{key:'g3',label:'الثالث',grade:GRADES[2]}];
 export function buildScoped({students=[],results=[],access=[],now=Date.now(),scope={type:'open'},bookChapters={},bookTitles={},group={}}={}){
   const U=mkUnits(students); if(!U.length) return {state:'noStudents'};
