@@ -346,6 +346,7 @@ export async function mount(el,ctx){
     return await staleLines('');
   };
   async function sendNow(btn){
+    CE.flyMaybe(st.att,btn);   // (v9.504) الشخصية والطيارة: شكل جمالي أول ما يضغط (أول محاولة + درجة > ٠، مرة واحدة). مالها علاقة بنتيجة الإرسال وما بترميش خطأ
     const box=el.querySelector('#sendst'); btn.disabled=true; const lbl=btn.textContent; btn.textContent='جارٍ التحقق والإرسال…'; box.className='hint'; box.textContent='';
     if(isStudent&&prof&&typeof SY.reviveDeadTasks==='function'){ try{ await SY.reviveDeadTasks(prof.id,{force:true}); }catch(e){} }   // (v9.499) المخدوم بيطلب الإرسال صراحةً: المهام القديمة الميتة بـ42501 تترجع تحاول تاني (بدون حد الإحياء)
     const [s,u]=await Promise.all([SY.flush(),checkUpdate()]);
