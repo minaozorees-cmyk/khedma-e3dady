@@ -58,6 +58,9 @@ export async function mount(el,ctx){
   const refHtml=(r)=>'<bdi>'+esc(String(r==null?'':r).replace(/\d/g,(d)=>'٠١٢٣٤٥٦٧٨٩'[d]))+'</bdi>';
   const bookOpen=(b)=>b.chapters.some(c=>!AC.isLocked(b.id,c.chapterNum));
   const shownBooks=()=>gated?books.filter(bookOpen):books;
+  // (v9.506) السفر «خلصان» لما كل إصحاحاته محلولة (نفس تعريف v9.503). المخدوم بس: الجاري فوق، والخلصان في قسم مطوي تحته.
+  let doneOpen=null;   // null = تلقائي (مفتوح لو مفيش أسفار جارية)، true/false = اختيار المخدوم (بيفضل مع إعادة الرسم)
+  const bookDone=(b)=>b.chapters.length>0&&b.chapters.every(c=>AC.isSolved(b.id,c.chapterNum));
   // (v9.39) تكبير/تصغير الخط (نسبة مئوية) — يُحفظ على الجهاز
   const ZK='quizZoom', ZMIN=80, ZMAX=160, ZSTEP=10;
   let zoom=100; try{ const v=Number(localStorage.getItem(ZK)); if(Number.isFinite(v)&&v>=ZMIN&&v<=ZMAX) zoom=Math.round(v/ZSTEP)*ZSTEP; }catch(e){}
@@ -155,7 +158,12 @@ export async function mount(el,ctx){
       if(!books.length) return `<div class="ph">📖 لا توجد مسابقات بعد.<br>تُضاف كملفات JSON في مجلد books/</div>${probs()}`;
       const vis=shownBooks();
       if(!vis.length) return `${rc}<div class="ph">📖 لا يوجد امتحان مفتوح اليوم.<br><small>لو لسه ما فتحتش التطبيق بالنت من وقت قريب، افتحه مرة عشان توصلك آخر المواعيد.</small></div>`;
-      return `${rc}<div class="gate">${vis.map(b=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${n(b.chapters.length)} إصحاح</small></button>`).join('')}${probs()}</div>`;
+      const card=(b,d)=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${d?'✅ ':''}${n(b.chapters.length)} إصحاح${d?' · خلّصته':''}</small></button>`;
+      const dn=gated?vis.filter(bookDone):[], cur=gated?vis.filter(b=>!bookDone(b)):vis;
+      if(!dn.length) return `${rc}<div class="gate">${cur.map(b=>card(b,false)).join('')}${probs()}</div>`;   // مفيش سفر خلصان: نفس الشكل القديم بالظبط
+      const op=doneOpen==null?!cur.length:doneOpen;   // (v9.506) لو كل الأسفار خلصت: القسم يبان مفتوح
+      const top=cur.length?'<div class="hint">📖 الأسفار الجارية</div>':'<div class="card2"><b>🎉 خلّصت كل الأسفار المفتوحة</b><div class="hint">أي سفر جديد هيظهر هنا أول ما يتفتح.</div></div>';
+      return `${rc}<div class="gate">${top}${cur.map(b=>card(b,false)).join('')}<button class="btn sec" data-a="toggleDone" aria-expanded="${op}">✅ أسفار خلّصتها (${n(dn.length)}) ${op?'▲':'▼'}</button>${op?`<div style="margin-top:12px">${dn.map(b=>card(b,true)).join('')}</div>`:''}${probs()}</div>`;
     },
     async chapters(){
       const at=await R.all(), b=book();
@@ -373,6 +381,7 @@ export async function mount(el,ctx){
       return;
     }
     if(a==='copydiag'){ const ok=await copyTxt(diagCopy), o=t.textContent; t.textContent=ok?'✅ اتنسخ':'تعذّر النسخ'; setTimeout(()=>{ if(t.isConnected) t.textContent=o; },1500); return; }
+    if(a==='toggleDone'){ doneOpen=t.getAttribute('aria-expanded')!=='true'; const y=el.scrollTop; await render(); el.scrollTop=y; return; }   // (v9.506) فتح/طي «أسفار خلّصتها» من غير ما الصفحة ترجع لفوق
     if(a==='zin'||a==='zout'){   // (v9.39) بدون إعادة رسم (عشان عدّاد القراءة والإجابات ما يتأثروش)
       zoom=Math.min(ZMAX,Math.max(ZMIN,zoom+(a==='zin'?ZSTEP:-ZSTEP))); try{ localStorage.setItem(ZK,String(zoom)); }catch(x){}
       const zm=el.querySelector('.zm'); if(zm) zm.style.setProperty('--qz',String(zoom/100));
