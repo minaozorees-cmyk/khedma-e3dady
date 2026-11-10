@@ -58,9 +58,14 @@ export async function mount(el,ctx){
   const refHtml=(r)=>'<bdi>'+esc(String(r==null?'':r).replace(/\d/g,(d)=>'٠١٢٣٤٥٦٧٨٩'[d]))+'</bdi>';
   const bookOpen=(b)=>b.chapters.some(c=>!AC.isLocked(b.id,c.chapterNum));
   const shownBooks=()=>gated?books.filter(bookOpen):books;
-  // (v9.506) السفر «خلصان» لما كل إصحاحاته محلولة (نفس تعريف v9.503). المخدوم بس: الجاري فوق، والخلصان في قسم مطوي تحته.
+  // (v9.506) المخدوم بس: الجاري فوق، والخلصان في قسم مطوي تحته.
+  // (v9.507) المنطق المدمج: الإصحاح «منتهي» لو محلول (نفس تعريف v9.503)، أو اتقفل بميعاده ومحلّوش (AC.lock why='after'؛ المفتوح بكود بعد القفل مش منتهي).
+  //   السفر «خلصان» (ينتقل للقسم المطوي) لو كل إصحاحاته منتهية وفيه محاولة واحدة على الأقل؛ و«كامل» لو كلها محلولة (الباقي = انتهى ميعاده).
   let doneOpen=null;   // null = تلقائي (مفتوح لو مفيش أسفار جارية)، true/false = اختيار المخدوم (بيفضل مع إعادة الرسم)
-  const bookDone=(b)=>b.chapters.length>0&&b.chapters.every(c=>AC.isSolved(b.id,c.chapterNum));
+  const solvedN=(b)=>b.chapters.filter(c=>AC.isSolved(b.id,c.chapterNum)).length;
+  const chEnded=(b,c)=>AC.isSolved(b.id,c.chapterNum)||(AC.lock(b.id,c.chapterNum)||{}).why==='after';
+  const bookDone=(b)=>b.chapters.length>0&&solvedN(b)>0&&b.chapters.every(c=>chEnded(b,c));
+  const bookFull=(b)=>b.chapters.length>0&&solvedN(b)===b.chapters.length;
   // (v9.39) تكبير/تصغير الخط (نسبة مئوية) — يُحفظ على الجهاز
   const ZK='quizZoom', ZMIN=80, ZMAX=160, ZSTEP=10;
   let zoom=100; try{ const v=Number(localStorage.getItem(ZK)); if(Number.isFinite(v)&&v>=ZMIN&&v<=ZMAX) zoom=Math.round(v/ZSTEP)*ZSTEP; }catch(e){}
@@ -158,12 +163,12 @@ export async function mount(el,ctx){
       if(!books.length) return `<div class="ph">📖 لا توجد مسابقات بعد.<br>تُضاف كملفات JSON في مجلد books/</div>${probs()}`;
       const vis=shownBooks();
       if(!vis.length) return `${rc}<div class="ph">📖 لا يوجد امتحان مفتوح اليوم.<br><small>لو لسه ما فتحتش التطبيق بالنت من وقت قريب، افتحه مرة عشان توصلك آخر المواعيد.</small></div>`;
-      const card=(b,d)=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${d?'✅ ':''}${n(b.chapters.length)} إصحاح${d?' · خلّصته':''}</small></button>`;
+      const card=(b,d)=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${!d?n(b.chapters.length)+' إصحاح':bookFull(b)?'✅ '+n(b.chapters.length)+' إصحاح · خلّصته':n(solvedN(b))+' من '+n(b.chapters.length)+' محلول · انتهى ميعاده'}</small></button>`;   // (v9.507) «خلّصته» للكامل بس
       const dn=gated?vis.filter(bookDone):[], cur=gated?vis.filter(b=>!bookDone(b)):vis;
       if(!dn.length) return `${rc}<div class="gate">${cur.map(b=>card(b,false)).join('')}${probs()}</div>`;   // مفيش سفر خلصان: نفس الشكل القديم بالظبط
       const op=doneOpen==null?!cur.length:doneOpen;   // (v9.506) لو كل الأسفار خلصت: القسم يبان مفتوح
-      const top=cur.length?'<div class="hint">📖 الأسفار الجارية</div>':'<div class="card2"><b>🎉 خلّصت كل الأسفار المفتوحة</b><div class="hint">أي سفر جديد هيظهر هنا أول ما يتفتح.</div></div>';
-      return `${rc}<div class="gate">${top}${cur.map(b=>card(b,false)).join('')}<button class="btn sec" data-a="toggleDone" aria-expanded="${op}">✅ أسفار خلّصتها (${n(dn.length)}) ${op?'▲':'▼'}</button>${op?`<div style="margin-top:12px">${dn.map(b=>card(b,true)).join('')}</div>`:''}${probs()}</div>`;
+      const top=cur.length?'<div class="hint">📖 الأسفار الجارية</div>':dn.every(bookFull)?'<div class="card2"><b>🎉 خلّصت كل الأسفار المفتوحة</b><div class="hint">أي سفر جديد هيظهر هنا أول ما يتفتح.</div></div>':'<div class="card2"><b>📚 مفيش أسفار جارية دلوقتي</b><div class="hint">أي سفر جديد هيظهر هنا أول ما يتفتح.</div></div>';   // (v9.507) 🎉 لو كلهم محلولين كاملين بس
+      return `${rc}<div class="gate">${top}${cur.map(b=>card(b,false)).join('')}<button class="btn sec" data-a="toggleDone" aria-expanded="${op}">📁 أسفار خلصت أو انتهى ميعادها (${n(dn.length)}) ${op?'▲':'▼'}</button>${op?`<div style="margin-top:12px">${dn.map(b=>card(b,true)).join('')}</div>`:''}${probs()}</div>`;
     },
     async chapters(){
       const at=await R.all(), b=book();
