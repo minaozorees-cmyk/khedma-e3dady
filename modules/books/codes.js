@@ -32,15 +32,20 @@ export async function mount(el,{role}={}){
   if(role==='student'){ el.innerHTML='<div class="ph">هذه الصفحة للطاقم فقط.</div>'; return; }
   const S={err:'',ok:'',books:[],codes:[],acc:[]};
   const root=document.createElement('div'); root.className='gate'; root.style.maxWidth='720px'; el.innerHTML=''; el.appendChild(root);
+  // (v9.508) تبويب مقفول لكل سفر (<details>)، وكل تبويب مستقل ويفتكر حالته على الجهاز (localStorage 'codesOpen' = مصفوفة ids الأسفار المفتوحة). الحالة بتتطبّق بعد كل paint() (نسخ/تحديث) عشان التبويب ما يتقفلش.
+  const OPK='codesOpen';
+  const opened=(()=>{ try{ const v=JSON.parse(localStorage.getItem(OPK)||'[]'); return new Set(Array.isArray(v)?v.filter(x=>typeof x==='string'):[]); }catch(e){ return new Set(); } })();
+  const saveOpen=()=>{ try{ localStorage.setItem(OPK,JSON.stringify([...opened].slice(-100))); }catch(e){} };
+  const cnt=(k)=>k===1?'كود واحد':k===2?'كودين':k<=10?n(k)+' أكواد':n(k)+' كود';
   function paint(){
     const cm=new Map(S.codes.map(c=>[c.book_id+'|'+c.chapter_num,c])), am=new Map(S.acc.map(a=>[a.book_id+'|'+a.chapter_num,a]));
     const items=S.books.map(b=>({b,list:b.chapters.filter(c=>cm.has(b.id+'|'+c.chapterNum))})).filter(x=>x.list.length);
     root.innerHTML=`${S.err?`<div class="err">${esc(S.err)}</div>`:''}${S.ok?`<div class="hint">${esc(S.ok)}</div>`:''}
       <div class="hint">كل كود صالح لأي مخدوم لفتح إصحاحه. انسخه أو ابعته للمخدومين (واتساب أو أي تطبيق).</div>
-      ${items.length?items.map(({b,list})=>`<div class="card2"><b>${esc(b.title)}</b>${list.map(c=>{ const k=b.id+'|'+c.chapterNum, cd=cm.get(k);
+      ${items.length?items.map(({b,list})=>`<details class="card2" data-b="${esc(b.id)}"${opened.has(b.id)?' open':''}><summary><b>📖 ${esc(b.title)}</b> · ${cnt(list.length)}</summary><div style="margin-top:10px">${list.map(c=>{ const k=b.id+'|'+c.chapterNum, cd=cm.get(k);
         return `<div class="row" style="display:block"><div><b>إصحاح ${n(c.chapterNum)}</b> <span dir="ltr" style="font-family:monospace;font-weight:700;letter-spacing:2px;margin-inline-start:8px">${esc(fmtCode(cd.code))}</span></div>
           <div class="k">${esc(whenText(am.get(k)))}</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn sec" style="width:auto;min-height:36px;margin:0;padding:6px 14px;font-size:.85rem" data-a="copy" data-k="${esc(k)}">📋 نسخ</button><button class="btn sec" style="width:auto;min-height:36px;margin:0;padding:6px 14px;font-size:.85rem" data-a="send" data-k="${esc(k)}">📤 إرسال</button></div></div>`; }).join('')}</div>`).join('')
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn sec" style="width:auto;min-height:36px;margin:0;padding:6px 14px;font-size:.85rem" data-a="copy" data-k="${esc(k)}">📋 نسخ</button><button class="btn sec" style="width:auto;min-height:36px;margin:0;padding:6px 14px;font-size:.85rem" data-a="send" data-k="${esc(k)}">📤 إرسال</button></div></div>`; }).join('')}</div></details>`).join('')
       :'<div class="ph">🔑 لسه مفيش أكواد. المالك بيولّدها من تبويب «مواعيد الإصحاحات».</div>'}
       <button class="btn sec" data-a="reload">تحديث</button>`;
   }
@@ -52,6 +57,10 @@ export async function mount(el,{role}={}){
     }catch(e){ S.err=errMsg(e); }
     paint();
   }
+  root.addEventListener('toggle',(e)=>{   // toggle مبيعملش bubble → capture. الرسم من paint() بيطلّق toggle للمفتوح بس (idempotent)
+    const d=e.target; if(!d||!d.matches||!d.matches('details[data-b]')) return;
+    if(d.open) opened.add(d.dataset.b); else opened.delete(d.dataset.b); saveOpen();
+  },true);
   root.addEventListener('click',(e)=>{
     const t=e.target.closest('[data-a]'); if(!t||t.disabled) return; const a=t.dataset.a;
     if(a==='reload'){ S.ok=''; load(); return; }
