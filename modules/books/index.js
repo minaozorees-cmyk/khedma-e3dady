@@ -12,6 +12,8 @@ import * as TTS from '../../js/tts.js';
 import * as T from '../../js/solve-timer.js';
 import * as RS from '../../js/read-session.js';
 import * as CE from '../../js/celebrate.js';   // (v9.502) كونفيتي بعد إنهاء الامتحان
+import * as CM from './chmap.js';   // (v9.509) خريطة الإصحاحات للمخدوم
+import {subOf} from '../../js/chmap-logic.js';
 const ARCH_MSG='⚠️ حسابك اتأرشف: نتيجتك اتسجّلت بس ما بتظهرش للخدام ولا بتتحسب. استخدم حسابك المعتمد بالكود اللي اتبعتلك (اضغط «عندي كود» واكتب اسمك والكود)، أو كلّم خادمك.';   // (v9.494)   // (v9.489) وقت القراءة Pause/Resume
 import * as db from '../../js/db.js';
 import {APP_VERSION} from '../../js/version.js';   // (v9.497)
@@ -72,6 +74,10 @@ export async function mount(el,ctx){
   const zbar=()=>`<div class="zbar"><button class="zb" data-a="zout" aria-label="تصغير الخط"${zoom<=ZMIN?' disabled':''}>A−</button><span class="zl" id="zl">${n(zoom)}٪</span><button class="zb" data-a="zin" aria-label="تكبير الخط"${zoom>=ZMAX?' disabled':''}>A+</button></div>`;
   const me=(t)=>esc(t).replace(/\{name\}/g,nm);
   const back=(a,t)=>`<button class="btn sec" data-a="${a}">${t}</button>`;
+  // (v9.509) خريطة الإصحاحات (المخدوم فقط): بيانات كل إصحاح من نفس المصادر القديمة (R.summary لأول محاولة، AC.lock للقفل). الطاقم يفضل على الشبكة القديمة.
+  let cmData=null;
+  const cmBuild=(at,b)=>b.chapters.map((c)=>{ const s=R.summary(at,b.id,c.chapterNum); return {num:c.chapterNum,sub:subOf(c),lock:AC.lock(b.id,c.chapterNum),first:s.first?{score:s.first.score,total:s.first.total}:null,attempts:s.n}; });
+  const cmOpen=(num)=>{ if(st.s!=='chapters') return; const x=document.createElement('button'); x.type='button'; x.hidden=true; x.dataset.a='chap'; x.dataset.n=String(num); el.appendChild(x); x.click(); x.remove(); };   // نفس مسار زر الإصحاح (جلسة/قفل/قراءة)
   const answeredCount=(qs,ans)=>qs.filter((q,i)=>X.isAnswered(q,ans[i])).length;
   // (v9.38) عدد أسئلة الامتحان: لو للسفر qn>0 بيتسحب qn سؤال عشوائياً من البنك (بترتيب الملف). sel = أرقام الأسئلة المختارة وبتتحفظ في الجلسة.
   const examN=(b,c)=>{ const L=c.questions.length; return b.qn>0&&b.qn<L?b.qn:L; };
@@ -172,6 +178,7 @@ export async function mount(el,ctx){
     },
     async chapters(){
       const at=await R.all(), b=book();
+      if(gated){ cmData=cmBuild(at,b); return CM.html(b.title,{verses:b.chapters.some(c=>c.meditation)}); }   // (v9.509) خريطة الإصحاحات
       return `<div class="gate"><h3 class="ttl">${esc(b.title)}</h3><div class="hint">الرقم تحت كل إصحاح = درجة أول محاولة (المعتمدة)</div><div class="chgrid">${b.chapters.map(c=>{ const s=R.summary(at,b.id,c.chapterNum), lk=gated&&AC.isLocked(b.id,c.chapterNum);
         return `<button class="chb${s.n?' done':''}" data-a="chap" data-n="${c.chapterNum}">${n(c.chapterNum)}<small>${lk?'🔒':s.first?n(s.first.score)+'/'+n(s.first.total):'—'}</small></button>`; }).join('')}</div>${gated&&b.chapters.some(c=>AC.isLocked(b.id,c.chapterNum))?'<div class="hint">🔒 = مقفول لحد ميعاده، أو بكود من الخادم</div>':''}${b.chapters.some(c=>c.meditation)?'<button class="btn sec" data-a="verses">📜 آيات السفر</button>':''}${back('toBooks','رجوع للأسفار')}</div>`;
     },
@@ -303,10 +310,12 @@ export async function mount(el,ctx){
     if(['read','med','exam','verses','result'].includes(st.s)) html=`<div class="zm" style="--qz:${zoom/100}">${html}</div>`;   // (v9.39) نطاق التكبير
     if((st.s==='books'||st.s==='result')&&ncOn()) html=ncBanner()+html;   // (v9.498) البانر الأصفر
     TTS.stop(); el.innerHTML=html; el.scrollTop=0; qSync(); rSync();
+    if(st.s==='chapters'&&gated&&cmData){ const bid=st.bid;   // (v9.509) تشغيل الخريطة بعد رسم الهيكل
+      CM.init(el.querySelector('.cm'),{key:pid+'|'+bid,chapters:cmData,verify:(num,code)=>AC.verify(bid,num,code),unlock:(num)=>AC.markUnlocked(bid,num),reload:async()=>cmBuild(await R.all(),book()),open:cmOpen,resumable:(num)=>!!(sess&&sess.bid===bid&&sess.num===num)}); }
     if(st.s==='read'){ TTS.bind(el); }
     if(st.s==='result'&&isStudent) SY.accountArchived().then(a=>{ const bx=el.querySelector('#sendst'); if(a&&bx&&st.s==='result'){ bx.className='warn'; bx.textContent=ARCH_MSG; } }).catch(()=>{});   // (v9.494) حسابه اتأرشف؟ نبلّغه فوراً
     if(st.s==='result'&&isStudent) autoLines().then(L=>{ const bx=el.querySelector('#sendst'); if(!L||!bx||st.s!=='result') return; const h=L.map(esc).join('<br>'); if(bx.className==='warn'){ bx.innerHTML=bx.innerHTML+'<br>'+h; } else{ bx.className='warn'; bx.innerHTML=h; } }).catch(()=>{});   // (v9.497) + (v9.499): رسالة تلقائية حسب «نتيجة الشاشة دي»
-    if(gated&&st.s==='books'){ const w=AC.nextChangeIn(); if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&st.s==='books') render(); },Math.min(w+1000,2147e6)); }   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
+    if(gated&&(st.s==='books'||st.s==='chapters')){ const w=AC.nextChangeIn(); if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&(st.s==='books'||st.s==='chapters')&&!el.querySelector('.cm-open')) render(); },Math.min(w+1000,2147e6)); }   // (v9.509) + شاشة الإصحاحات: العقدة تتفتح لحظة الميعاد   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
   }
 
   // (v9.486) «📊 تفاصيل الرفع (للدعم)»: مخفية افتراضياً؛ بعد الضغط تظهر ٣ أسطر + زر «📋 نسخ التفاصيل» (جوه الصندوق بس)
@@ -461,7 +470,7 @@ export async function mount(el,ctx){
   };
 
   // v9.21: مواعيد الإصحاحات — الكاش فوراً (يشتغل أوفلاين) والتحديث من السيرفر في الخلفية
-  if(gated){ await AC.load(); try{ AC.setSolved(await R.all()); }catch(e){} AC.refresh().then(ok=>{ if(ok&&(st.s==='books'||st.s==='chapters'||st.s==='verses'||st.s==='locked')&&el.isConnected) render(); }).catch(()=>{}); }
+  if(gated){ await AC.load(); try{ AC.setSolved(await R.all()); }catch(e){} AC.refresh().then(ok=>{ if(ok&&(st.s==='books'||st.s==='chapters'||st.s==='verses'||st.s==='locked')&&el.isConnected&&!el.querySelector('.cm-open')) render(); }).catch(()=>{}); }
   // عند الفتح: نحمّل الجلسة المحفوظة، ونغلق المنتهية (> ٦ ساعات) تلقائياً
   rmap=await RS.load().catch(()=>({}));   // (v9.489) جلسات القراءة المحفوظة (المنتهية > ٦ ساعات بتتشال)
   sess=await S.load();
