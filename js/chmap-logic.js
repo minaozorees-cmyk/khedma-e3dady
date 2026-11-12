@@ -63,7 +63,7 @@ export const verifyMsg=(r)=>VERIFY_MSG[r]||'تعذّر الفحص، جرّب ت�
 // شكل السفر: {id, title, chapters:[{num, lock:{why:'before'|'after',at}|null (نتيجة AC.lock), solved:bool (AC.isSolved)}]}
 //   locked = ميعاد فتحه لسه ما جاش (بيغلب المحلول: نفس kindOf) · done = محلول · ended = اتقفل بميعاده ومحلّوش · open = مفتوح ومش محلول
 const DAY=864e5;
-export const WINDOW_DAYS=30, KEEP_DAYS=60;   // السفر اللي لسه ما بدأش بيظهر قبل فتحه بـ٣٠ يوم · السفر المنتهي من غير حل بيفضل ظاهر ٦٠ يوم بعد قفل آخر إصحاح
+export const WINDOW_DAYS=30, KEEP_DAYS=60, HOT_HOURS=24;   // (v9.511) السفر اللي لسه ما بدأش بيظهر في البانر بس لو أقرب فتح فيه ≤٣٠ يوم (الأقرب فقط)، وأي سفر تاني لسه ما بدأش بيظهر لما يفضله ≤٢٤ ساعة · السفر المنتهي من غير حل بيفضل ظاهر ٦٠ يوم بعد قفل آخر إصحاح
 export const chKind=(c)=>c.lock&&c.lock.why==='before'?'locked':c.solved?'done':c.lock?'ended':'open';
 export const bookHasOpen=(b)=>b.chapters.some((c)=>chKind(c)==='open');
 export const bookStarted=(b)=>b.chapters.some((c)=>chKind(c)!=='locked');   // فيه إصحاح اتفتح قبل كده (مفتوح/محلول/انتهى)
@@ -77,22 +77,45 @@ export function bookNextOpen(b){
 }
 // آخر لحظة قفل لإصحاحات السفر المنتهية (للسفر اللي كله ended)، وإلا null
 const closedAt=(b)=>{ let m=null; for(const c of b.chapters) if(chKind(c)==='ended'&&Number.isFinite(c.lock.at)&&(m==null||c.lock.at>m)) m=c.lock.at; return m; };
-// الأسفار اللي تظهر للمخدوم (بنفس ترتيب المدخلات):
+// الأسفار اللي تظهر للمخدوم «ككروت» (بنفس ترتيب المدخلات):
 //   ١) فيه إصحاح متاح دلوقتي (مفتوح أو محلول، زي bookOpen القديمة)
-//   ٢) فيه إصحاح جاي: لو السفر بدأ قبل كده يظهر مهما كان الميعاد بعيد؛ ولو لسه ما بدأش يظهر بس لو ميعاد فتحه خلال windowDays من دلوقتي
+//   ٢) فيه إصحاح جاي وبدأ قبل كده (فيه إصحاح اتفتح): يظهر مهما كان الميعاد بعيد
+//      (v9.511) السفر اللي **لسه ما بدأش** مش كارت خالص لحد ما أول إصحاح فيه يفتح؛ قبلها بيظهر في البانر بـ🔒 بس (bannerLines)
 //   ٣) كله منتهي ومحلّش حاجة: يظهر (في القسم المطوي) لو المخدوم حلّ أي حاجة في أي سفر، أو آخر إصحاح اتقفل من أقل من keepDays
-export function visibleBooks(books,now,{windowDays=WINDOW_DAYS,keepDays=KEEP_DAYS}={}){
+export function visibleBooks(books,now,{keepDays=KEEP_DAYS}={}){
   const anySolved=books.some((b)=>b.chapters.some((c)=>c.solved));
   return books.filter((b)=>{
     if(!b.chapters.length) return false;
     if(b.chapters.some((c)=>{ const k=chKind(c); return k==='open'||k==='done'; })) return true;
-    const nx=bookNextOpen(b);
-    if(nx) return bookStarted(b)||nx.at-now<=windowDays*DAY;
+    if(bookNextOpen(b)) return bookStarted(b);
     const t=closedAt(b);
     return anySolved||(t!=null&&now-t<keepDays*DAY);
   });
 }
-// أقرب فتح بين الأسفار اللي بتتمرّر (index.js بيمرّر الظاهرة بس): {id,title,num,at} أو null. التعادل: الأسبق في الترتيب ثم الأقل رقماً
+// (v9.511) سطور البانر «أقرب فتح»: [{id,title,num,at,locked}] مترتبة بالميعاد (والتعادل بترتيب الأسفار ثم رقم الإصحاح)، كل سطر = سفر واحد:
+//   • أقرب إصحاح جاي في الأسفار اللي **بدأت** (locked:false)، مهما كان بعيد
+//   • الأسفار اللي **لسه ما بدأتش** (locked:true = 🔒): الأقرب بس (لو خلال windowDays)، وأي سفر تاني لو فاضله ≤ hotHours على فتحه؛ ولو سفرين نفس لحظة الأقرب يظهروا الاتنين
+export function bannerLines(books,now,{windowDays=WINDOW_DAYS,hotHours=HOT_HOURS}={}){
+  const out=[]; let ord=0, started=null; const fresh=[];
+  for(const b of books){ const o=ord++; if(!b.chapters.length) continue; const x=bookNextOpen(b); if(!x) continue;
+    const r={id:b.id,title:b.title,num:x.num,at:x.at,locked:!bookStarted(b),o};
+    if(r.locked) fresh.push(r); else if(!started||r.at<started.at) started=r; }
+  if(started) out.push(started);
+  fresh.sort((a,b)=>a.at-b.at||a.o-b.o);
+  const first=fresh[0];
+  if(first&&first.at-now<=windowDays*DAY) for(const r of fresh) if(r===first||r.at===first.at||r.at-now<=hotHours*36e5) out.push(r);
+  out.sort((a,b)=>a.at-b.at||a.o-b.o);
+  return out.map(({o,...r})=>r);
+}
+// (v9.511) بعد كام مللي ثانية يتغيّر اللي بيظهر بسبب حدّ زمني (مش بسبب ميعاد فتح/قفل إصحاح: ده مؤقّت AC.nextChangeIn): دخول سفر لسه ما بدأش نافذة الـ٣٠ يوم أو الـ٢٤ ساعة، وانتهاء الـ٦٠ يوم للسفر المنتهي. null لو مفيش.
+export function nextWindowIn(books,now,{windowDays=WINDOW_DAYS,hotHours=HOT_HOURS,keepDays=KEEP_DAYS}={}){
+  let best=null; const add=(t)=>{ const d=t-now; if(d>0&&(best==null||d<best)) best=d; };
+  for(const b of books){ if(!b.chapters.length) continue; const x=bookNextOpen(b);
+    if(x&&!bookStarted(b)){ add(x.at-windowDays*DAY); add(x.at-hotHours*36e5); }
+    else if(!x&&bookEnded(b)){ const t=closedAt(b); if(t!=null) add(t+keepDays*DAY); } }
+  return best;
+}
+// أقرب فتح بين الأسفار اللي بتتمرّر (v9.510؛ من v9.511 البانر بقى بـbannerLines، والدالة دي لسه متاحة): {id,title,num,at} أو null. التعادل: الأسبق في الترتيب ثم الأقل رقماً
 export function nextOpenAcross(books){
   let best=null;
   for(const b of books){ const x=bookNextOpen(b); if(x&&(!best||x.at<best.at)) best={id:b.id,title:b.title,num:x.num,at:x.at}; }
@@ -121,5 +144,5 @@ export function fmtOpenAr(ts,now){ const x=pieces(ts,now); return x?'يوم '+x.
 // «الأحد ١٥ نوفمبر ٨:٠٠ م» (للكارت)
 export function fmtOpenShort(ts,now){ const x=pieces(ts,now); return x?x.day+' '+x.date+' '+x.time:''; }
 // نص البانر (نص عادي: index.js بيعمل esc) ونص سطر الكارت
-export const bannerText=(nx,now)=>'⏳ إصحاح '+ar(nx.num)+' من «'+nx.title+'» هيفتح '+fmtOpenAr(nx.at,now);
+export const bannerText=(nx,now)=>'⏳ إصحاح '+ar(nx.num)+' من '+(nx.locked?'🔒 ':'')+'«'+nx.title+'» هيفتح '+fmtOpenAr(nx.at,now);   // (v9.511) 🔒 للسفر اللي لسه ما بدأش
 export const cardLine=(nx,now)=>'⏳ أقرب فتح: إصحاح '+ar(nx.num)+' · '+fmtOpenShort(nx.at,now);
