@@ -59,7 +59,8 @@ export async function mount(el,ctx){
   // (v9.39) للمخدوم: السفر يظهر فقط لو فيه إصحاح مفتوح الآن (بميعاد حلّ أو بدون ميعاد أو مفتوح بكود). الطاقم يرى كل الأسفار. الوقت من ساعة السيرفر/الموبايل ويشتغل أوفلاين.
   // (v9.503) مرجع الآية: أرقام عربية داخل <bdi> علشان ما يتقلبش ترتيبه في النص العربي (كان بيظهر «12 :10»)
   const refHtml=(r)=>'<bdi>'+esc(String(r==null?'':r).replace(/\d/g,(d)=>'٠١٢٣٤٥٦٧٨٩'[d]))+'</bdi>';
-  // (v9.510) المخدوم: السفر يظهر لو فيه إصحاح متاح، أو إصحاح جاي (السفر اللي لسه ما بدأش بس لو ميعاده خلال ٣٠ يوم)، أو كله منتهي (لو حلّ حاجة في أي سفر أو اتقفل من أقل من ٦٠ يوم) ← الشاشة ما تفضلش فاضية. القواعد في js/chmap-logic.js (visibleBooks). الطاقم يرى كل الأسفار.
+  // (v9.510) المخدوم: السفر يظهر ككارت لو فيه إصحاح متاح، أو إصحاح جاي وهو **بدأ** قبل كده، أو كله منتهي (لو حلّ حاجة في أي سفر أو اتقفل من أقل من ٦٠ يوم). القواعد في js/chmap-logic.js (visibleBooks). الطاقم يرى كل الأسفار.
+  // (v9.511) السفر اللي لسه ما بدأش مش كارت: بيظهر في البانر بـ🔒 بس (الأقرب + اللي ≤٢٤ ساعة، حد ٣٠ يوم) لحد ما أول إصحاح فيه يفتح (js/chmap-logic.js bannerLines)
   const adapt=(b)=>({id:b.id,title:b.title,chapters:b.chapters.map(c=>({num:c.chapterNum,lock:AC.lock(b.id,c.chapterNum),solved:AC.isSolved(b.id,c.chapterNum)}))});
   const shownBooks=()=>{ if(!gated) return books; const ids=new Set(LG.visibleBooks(books.map(adapt),AC.now()).map(x=>x.id)); return books.filter(b=>ids.has(b.id)); };
   // (v9.506) المخدوم بس: الجاري فوق، والخلصان في قسم مطوي تحته.
@@ -170,10 +171,11 @@ export async function mount(el,ctx){
         if(f) rc=`<div class="card2"><b>⏸ عندك امتحان مفتوح</b><div class="hint">${esc(f.b.title)} — إصحاح ${n(sess.num)}</div><button class="btn" data-a="resume">كمّل من النقطة</button></div>`; }
       if(!books.length) return `<div class="ph">📖 لا توجد مسابقات بعد.<br>تُضاف كملفات JSON في مجلد books/</div>${probs()}`;
       const vis=shownBooks();
-      if(!vis.length) return `${rc}<div class="ph">📖 لا يوجد امتحان مفتوح اليوم.<br><small>لو لسه ما فتحتش التطبيق بالنت من وقت قريب، افتحه مرة عشان توصلك آخر المواعيد.</small></div>`;
-      // (v9.510) للمخدوم: بانر «أقرب فتح» (من الأسفار الظاهرة بس) فوق الكروت، وسطر «أقرب فتح» على كارت السفر اللي مفيهوش إصحاح مفتوح ومش محلول
-      const now=AC.now(), nx=gated?LG.nextOpenAcross(vis.map(adapt)):null;
-      const bn=nx?`<div class="card2" id="nxbar" role="status"><b>${esc(LG.bannerText(nx,now))}</b></div>`:'';
+      // (v9.511) البانر: سطر لكل سفر (🔒 للسفر اللي لسه ما بدأش)؛ بيتحسب قبل حالة «مفيش كروت» عشان يظهر فوق رسالة «لا يوجد امتحان مفتوح اليوم»
+      const now=AC.now(), lines=gated?LG.bannerLines(books.map(adapt),now):[];
+      const bn=lines.length?`<div class="card2" id="nxbar" role="status">${lines.map((x,i)=>`<div class="nxl"${i?' style="margin-top:8px"':''}><b>${esc(LG.bannerText(x,now))}</b></div>`).join('')}</div>`:'';
+      if(!vis.length) return `${rc}${bn?`<div class="gate">${bn}</div>`:''}<div class="ph">📖 لا يوجد امتحان مفتوح اليوم.<br><small>لو لسه ما فتحتش التطبيق بالنت من وقت قريب، افتحه مرة عشان توصلك آخر المواعيد.</small></div>`;
+      // (v9.510) للمخدوم: سطر «أقرب فتح» على كارت السفر اللي مفيهوش إصحاح مفتوح ومش محلول (والبانر فوق بقى بـbannerLines)
       const nline=(b)=>{ if(!gated) return ''; const a=adapt(b), x=LG.bookHasOpen(a)?null:LG.bookNextOpen(a); return x?`<small class="nx">${esc(LG.cardLine(x,now))}</small>`:''; };
       const card=(b,d)=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${!d?n(b.chapters.length)+' إصحاح':bookFull(b)?'✅ '+n(b.chapters.length)+' إصحاح · خلّصته':n(solvedN(b))+' من '+n(b.chapters.length)+' محلول · انتهى ميعاده'}</small>${d?'':nline(b)}</button>`;   // (v9.507) «خلّصته» للكامل بس
       const dn=gated?vis.filter(bookDone):[], cur=gated?vis.filter(b=>!bookDone(b)):vis;
@@ -321,7 +323,7 @@ export async function mount(el,ctx){
     if(st.s==='read'){ TTS.bind(el); }
     if(st.s==='result'&&isStudent) SY.accountArchived().then(a=>{ const bx=el.querySelector('#sendst'); if(a&&bx&&st.s==='result'){ bx.className='warn'; bx.textContent=ARCH_MSG; } }).catch(()=>{});   // (v9.494) حسابه اتأرشف؟ نبلّغه فوراً
     if(st.s==='result'&&isStudent) autoLines().then(L=>{ const bx=el.querySelector('#sendst'); if(!L||!bx||st.s!=='result') return; const h=L.map(esc).join('<br>'); if(bx.className==='warn'){ bx.innerHTML=bx.innerHTML+'<br>'+h; } else{ bx.className='warn'; bx.innerHTML=h; } }).catch(()=>{});   // (v9.497) + (v9.499): رسالة تلقائية حسب «نتيجة الشاشة دي»
-    if(gated&&(st.s==='books'||st.s==='chapters')){ const w=AC.nextChangeIn(); if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&(st.s==='books'||st.s==='chapters')&&!el.querySelector('.cm-open')) render(); },Math.min(w+1000,2147e6)); }   // (v9.509) + شاشة الإصحاحات: العقدة تتفتح لحظة الميعاد   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
+    if(gated&&(st.s==='books'||st.s==='chapters')){ const ws=[AC.nextChangeIn(),LG.nextWindowIn(books.map(adapt),AC.now())].filter(x=>x!=null), w=ws.length?Math.min(...ws):null; if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&(st.s==='books'||st.s==='chapters')&&!el.querySelector('.cm-open')) render(); },Math.min(w+1000,2147e6)); }   // (v9.509) + شاشة الإصحاحات: العقدة تتفتح لحظة الميعاد   // (v9.511) + حدّي ٢٤ ساعة/٣٠ يوم للأسفار اللي لسه ما بدأتش (nextWindowIn)   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
   }
 
   // (v9.486) «📊 تفاصيل الرفع (للدعم)»: مخفية افتراضياً؛ بعد الضغط تظهر ٣ أسطر + زر «📋 نسخ التفاصيل» (جوه الصندوق بس)
