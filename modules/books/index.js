@@ -14,6 +14,7 @@ import * as RS from '../../js/read-session.js';
 import * as CE from '../../js/celebrate.js';   // (v9.502) كونفيتي بعد إنهاء الامتحان
 import * as CM from './chmap.js';   // (v9.509) خريطة الإصحاحات للمخدوم
 import {subOf} from '../../js/chmap-logic.js';
+import * as LG from '../../js/chmap-logic.js';   // (v9.510) ظهور الأسفار + أقرب فتح (دوال نقية)
 const ARCH_MSG='⚠️ حسابك اتأرشف: نتيجتك اتسجّلت بس ما بتظهرش للخدام ولا بتتحسب. استخدم حسابك المعتمد بالكود اللي اتبعتلك (اضغط «عندي كود» واكتب اسمك والكود)، أو كلّم خادمك.';   // (v9.494)   // (v9.489) وقت القراءة Pause/Resume
 import * as db from '../../js/db.js';
 import {APP_VERSION} from '../../js/version.js';   // (v9.497)
@@ -58,15 +59,16 @@ export async function mount(el,ctx){
   // (v9.39) للمخدوم: السفر يظهر فقط لو فيه إصحاح مفتوح الآن (بميعاد حلّ أو بدون ميعاد أو مفتوح بكود). الطاقم يرى كل الأسفار. الوقت من ساعة السيرفر/الموبايل ويشتغل أوفلاين.
   // (v9.503) مرجع الآية: أرقام عربية داخل <bdi> علشان ما يتقلبش ترتيبه في النص العربي (كان بيظهر «12 :10»)
   const refHtml=(r)=>'<bdi>'+esc(String(r==null?'':r).replace(/\d/g,(d)=>'٠١٢٣٤٥٦٧٨٩'[d]))+'</bdi>';
-  const bookOpen=(b)=>b.chapters.some(c=>!AC.isLocked(b.id,c.chapterNum));
-  const shownBooks=()=>gated?books.filter(bookOpen):books;
+  // (v9.510) المخدوم: السفر يظهر لو فيه إصحاح متاح، أو إصحاح جاي (السفر اللي لسه ما بدأش بس لو ميعاده خلال ٣٠ يوم)، أو كله منتهي (لو حلّ حاجة في أي سفر أو اتقفل من أقل من ٦٠ يوم) ← الشاشة ما تفضلش فاضية. القواعد في js/chmap-logic.js (visibleBooks). الطاقم يرى كل الأسفار.
+  const adapt=(b)=>({id:b.id,title:b.title,chapters:b.chapters.map(c=>({num:c.chapterNum,lock:AC.lock(b.id,c.chapterNum),solved:AC.isSolved(b.id,c.chapterNum)}))});
+  const shownBooks=()=>{ if(!gated) return books; const ids=new Set(LG.visibleBooks(books.map(adapt),AC.now()).map(x=>x.id)); return books.filter(b=>ids.has(b.id)); };
   // (v9.506) المخدوم بس: الجاري فوق، والخلصان في قسم مطوي تحته.
   // (v9.507) المنطق المدمج: الإصحاح «منتهي» لو محلول (نفس تعريف v9.503)، أو اتقفل بميعاده ومحلّوش (AC.lock why='after'؛ المفتوح بكود بعد القفل مش منتهي).
   //   السفر «خلصان» (ينتقل للقسم المطوي) لو كل إصحاحاته منتهية وفيه محاولة واحدة على الأقل؛ و«كامل» لو كلها محلولة (الباقي = انتهى ميعاده).
   let doneOpen=null;   // null = تلقائي (مفتوح لو مفيش أسفار جارية)، true/false = اختيار المخدوم (بيفضل مع إعادة الرسم)
   const solvedN=(b)=>b.chapters.filter(c=>AC.isSolved(b.id,c.chapterNum)).length;
-  const chEnded=(b,c)=>AC.isSolved(b.id,c.chapterNum)||(AC.lock(b.id,c.chapterNum)||{}).why==='after';
-  const bookDone=(b)=>b.chapters.length>0&&solvedN(b)>0&&b.chapters.every(c=>chEnded(b,c));
+  // (v9.510) «خلصان» = كل إصحاحاته منتهية (من غير شرط محاولة واحدة على الأقل: السفر اللي فاتك كله يروح للقسم المطوي بدل ما يتخفي). «منتهي» = محلول أو اتقفل بميعاده ومحلّوش (js/chmap-logic.js bookEnded).
+  const bookDone=(b)=>LG.bookEnded(adapt(b));
   const bookFull=(b)=>b.chapters.length>0&&solvedN(b)===b.chapters.length;
   // (v9.39) تكبير/تصغير الخط (نسبة مئوية) — يُحفظ على الجهاز
   const ZK='quizZoom', ZMIN=80, ZMAX=160, ZSTEP=10;
@@ -169,12 +171,16 @@ export async function mount(el,ctx){
       if(!books.length) return `<div class="ph">📖 لا توجد مسابقات بعد.<br>تُضاف كملفات JSON في مجلد books/</div>${probs()}`;
       const vis=shownBooks();
       if(!vis.length) return `${rc}<div class="ph">📖 لا يوجد امتحان مفتوح اليوم.<br><small>لو لسه ما فتحتش التطبيق بالنت من وقت قريب، افتحه مرة عشان توصلك آخر المواعيد.</small></div>`;
-      const card=(b,d)=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${!d?n(b.chapters.length)+' إصحاح':bookFull(b)?'✅ '+n(b.chapters.length)+' إصحاح · خلّصته':n(solvedN(b))+' من '+n(b.chapters.length)+' محلول · انتهى ميعاده'}</small></button>`;   // (v9.507) «خلّصته» للكامل بس
+      // (v9.510) للمخدوم: بانر «أقرب فتح» (من الأسفار الظاهرة بس) فوق الكروت، وسطر «أقرب فتح» على كارت السفر اللي مفيهوش إصحاح مفتوح ومش محلول
+      const now=AC.now(), nx=gated?LG.nextOpenAcross(vis.map(adapt)):null;
+      const bn=nx?`<div class="card2" id="nxbar" role="status"><b>${esc(LG.bannerText(nx,now))}</b></div>`:'';
+      const nline=(b)=>{ if(!gated) return ''; const a=adapt(b), x=LG.bookHasOpen(a)?null:LG.bookNextOpen(a); return x?`<small class="nx">${esc(LG.cardLine(x,now))}</small>`:''; };
+      const card=(b,d)=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${!d?n(b.chapters.length)+' إصحاح':bookFull(b)?'✅ '+n(b.chapters.length)+' إصحاح · خلّصته':n(solvedN(b))+' من '+n(b.chapters.length)+' محلول · انتهى ميعاده'}</small>${d?'':nline(b)}</button>`;   // (v9.507) «خلّصته» للكامل بس
       const dn=gated?vis.filter(bookDone):[], cur=gated?vis.filter(b=>!bookDone(b)):vis;
-      if(!dn.length) return `${rc}<div class="gate">${cur.map(b=>card(b,false)).join('')}${probs()}</div>`;   // مفيش سفر خلصان: نفس الشكل القديم بالظبط
+      if(!dn.length) return `${rc}<div class="gate">${bn}${cur.map(b=>card(b,false)).join('')}${probs()}</div>`;   // مفيش سفر خلصان: نفس الشكل القديم بالظبط
       const op=doneOpen==null?!cur.length:doneOpen;   // (v9.506) لو كل الأسفار خلصت: القسم يبان مفتوح
       const top=cur.length?'<div class="hint">📖 الأسفار الجارية</div>':dn.every(bookFull)?'<div class="card2"><b>🎉 خلّصت كل الأسفار المفتوحة</b><div class="hint">أي سفر جديد هيظهر هنا أول ما يتفتح.</div></div>':'<div class="card2"><b>📚 مفيش أسفار جارية دلوقتي</b><div class="hint">أي سفر جديد هيظهر هنا أول ما يتفتح.</div></div>';   // (v9.507) 🎉 لو كلهم محلولين كاملين بس
-      return `${rc}<div class="gate">${top}${cur.map(b=>card(b,false)).join('')}<button class="btn sec" data-a="toggleDone" aria-expanded="${op}">📁 أسفار خلصت أو انتهى ميعادها (${n(dn.length)}) ${op?'▲':'▼'}</button>${op?`<div style="margin-top:12px">${dn.map(b=>card(b,true)).join('')}</div>`:''}${probs()}</div>`;
+      return `${rc}<div class="gate">${bn}${top}${cur.map(b=>card(b,false)).join('')}<button class="btn sec" data-a="toggleDone" aria-expanded="${op}">📁 أسفار خلصت أو انتهى ميعادها (${n(dn.length)}) ${op?'▲':'▼'}</button>${op?`<div style="margin-top:12px">${dn.map(b=>card(b,true)).join('')}</div>`:''}${probs()}</div>`;
     },
     async chapters(){
       const at=await R.all(), b=book();
