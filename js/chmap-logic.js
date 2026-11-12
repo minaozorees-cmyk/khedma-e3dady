@@ -57,3 +57,69 @@ export const VERIFY_MSG={
   unavailable:'المتصفح ده مش بيدعم فحص الكود. افتح التطبيق من متصفح تاني.'
 };
 export const verifyMsg=(r)=>VERIFY_MSG[r]||'تعذّر الفحص، جرّب تاني.';
+
+// ===== (v9.510) قايمة الأسفار للمخدوم: ظهور السفر + «أقرب فتح» (modules/books/index.js) =====
+// دوال نقية (بدون DOM ولا access.js): index.js بيحوّل كل سفر لشكل بسيط ويمرّره هنا. الاختبار: tests/books-visibility.test.mjs
+// شكل السفر: {id, title, chapters:[{num, lock:{why:'before'|'after',at}|null (نتيجة AC.lock), solved:bool (AC.isSolved)}]}
+//   locked = ميعاد فتحه لسه ما جاش (بيغلب المحلول: نفس kindOf) · done = محلول · ended = اتقفل بميعاده ومحلّوش · open = مفتوح ومش محلول
+const DAY=864e5;
+export const WINDOW_DAYS=30, KEEP_DAYS=60;   // السفر اللي لسه ما بدأش بيظهر قبل فتحه بـ٣٠ يوم · السفر المنتهي من غير حل بيفضل ظاهر ٦٠ يوم بعد قفل آخر إصحاح
+export const chKind=(c)=>c.lock&&c.lock.why==='before'?'locked':c.solved?'done':c.lock?'ended':'open';
+export const bookHasOpen=(b)=>b.chapters.some((c)=>chKind(c)==='open');
+export const bookStarted=(b)=>b.chapters.some((c)=>chKind(c)!=='locked');   // فيه إصحاح اتفتح قبل كده (مفتوح/محلول/انتهى)
+export const bookEnded=(b)=>b.chapters.length>0&&b.chapters.every((c)=>{ const k=chKind(c); return k==='done'||k==='ended'; });   // كله «منتهي» (بند ٤: من غير شرط إن فيه محاولة)
+// أقرب إصحاح هيفتح في السفر: {num,at} أو null (لو في نفس اللحظة: الأقل رقماً)
+export function bookNextOpen(b){
+  let best=null;
+  for(const c of b.chapters){ if(chKind(c)!=='locked'||!Number.isFinite(c.lock.at)) continue;
+    if(!best||c.lock.at<best.at||(c.lock.at===best.at&&c.num<best.num)) best={num:c.num,at:c.lock.at}; }
+  return best;
+}
+// آخر لحظة قفل لإصحاحات السفر المنتهية (للسفر اللي كله ended)، وإلا null
+const closedAt=(b)=>{ let m=null; for(const c of b.chapters) if(chKind(c)==='ended'&&Number.isFinite(c.lock.at)&&(m==null||c.lock.at>m)) m=c.lock.at; return m; };
+// الأسفار اللي تظهر للمخدوم (بنفس ترتيب المدخلات):
+//   ١) فيه إصحاح متاح دلوقتي (مفتوح أو محلول، زي bookOpen القديمة)
+//   ٢) فيه إصحاح جاي: لو السفر بدأ قبل كده يظهر مهما كان الميعاد بعيد؛ ولو لسه ما بدأش يظهر بس لو ميعاد فتحه خلال windowDays من دلوقتي
+//   ٣) كله منتهي ومحلّش حاجة: يظهر (في القسم المطوي) لو المخدوم حلّ أي حاجة في أي سفر، أو آخر إصحاح اتقفل من أقل من keepDays
+export function visibleBooks(books,now,{windowDays=WINDOW_DAYS,keepDays=KEEP_DAYS}={}){
+  const anySolved=books.some((b)=>b.chapters.some((c)=>c.solved));
+  return books.filter((b)=>{
+    if(!b.chapters.length) return false;
+    if(b.chapters.some((c)=>{ const k=chKind(c); return k==='open'||k==='done'; })) return true;
+    const nx=bookNextOpen(b);
+    if(nx) return bookStarted(b)||nx.at-now<=windowDays*DAY;
+    const t=closedAt(b);
+    return anySolved||(t!=null&&now-t<keepDays*DAY);
+  });
+}
+// أقرب فتح بين الأسفار اللي بتتمرّر (index.js بيمرّر الظاهرة بس): {id,title,num,at} أو null. التعادل: الأسبق في الترتيب ثم الأقل رقماً
+export function nextOpenAcross(books){
+  let best=null;
+  for(const b of books){ const x=bookNextOpen(b); if(x&&(!best||x.at<best.at)) best={id:b.id,title:b.title,num:x.num,at:x.at}; }
+  return best;
+}
+// ===== تاريخ بالعربي بتوقيت القاهرة (الجداول بتاعتنا مش toLocaleString عشان الناتج يطلع واحد على أي موبايل) =====
+export const TZ='Africa/Cairo';
+const DAYS_AR=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const MONTHS_AR=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+function partsAt(ts){
+  try{
+    const o={}; for(const p of new Intl.DateTimeFormat('en-US',{timeZone:TZ,year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'numeric',hourCycle:'h23'}).formatToParts(new Date(ts))) o[p.type]=p.value;
+    const r={y:+o.year,m:+o.month,d:+o.day,h:+o.hour%24,mi:+o.minute};
+    if(Object.values(r).every(Number.isFinite)) return r;
+  }catch(e){}
+  const t=new Date(ts); return {y:t.getFullYear(),m:t.getMonth()+1,d:t.getDate(),h:t.getHours(),mi:t.getMinutes()};   // المتصفح ما بيدعمش المنطقة الزمنية: توقيت الجهاز
+}
+function pieces(ts,now){
+  if(!Number.isFinite(ts)) return null;
+  const p=partsAt(ts), y=p.y!==partsAt(Number.isFinite(now)?now:Date.now()).y?' '+ar(p.y):'';
+  const h12=p.h%12===0?12:p.h%12;
+  return {day:DAYS_AR[new Date(Date.UTC(p.y,p.m-1,p.d)).getUTCDay()],date:ar(p.d)+' '+MONTHS_AR[p.m-1]+y,time:ar(h12)+':'+ar(String(p.mi).padStart(2,'0'))+' '+(p.h<12?'ص':'م')};
+}
+// «يوم الأحد ١٥ نوفمبر الساعة ٨:٠٠ م» (السنة بتظهر بس لو غير السنة الحالية)
+export function fmtOpenAr(ts,now){ const x=pieces(ts,now); return x?'يوم '+x.day+' '+x.date+' الساعة '+x.time:''; }
+// «الأحد ١٥ نوفمبر ٨:٠٠ م» (للكارت)
+export function fmtOpenShort(ts,now){ const x=pieces(ts,now); return x?x.day+' '+x.date+' '+x.time:''; }
+// نص البانر (نص عادي: index.js بيعمل esc) ونص سطر الكارت
+export const bannerText=(nx,now)=>'⏳ إصحاح '+ar(nx.num)+' من «'+nx.title+'» هيفتح '+fmtOpenAr(nx.at,now);
+export const cardLine=(nx,now)=>'⏳ أقرب فتح: إصحاح '+ar(nx.num)+' · '+fmtOpenShort(nx.at,now);
