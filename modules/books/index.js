@@ -177,7 +177,8 @@ export async function mount(el,ctx){
       if(!vis.length) return `${rc}${bn?`<div class="gate">${bn}</div>`:''}<div class="ph">📖 لا يوجد امتحان مفتوح اليوم.<br><small>لو لسه ما فتحتش التطبيق بالنت من وقت قريب، افتحه مرة عشان توصلك آخر المواعيد.</small></div>`;
       // (v9.510) للمخدوم: سطر «أقرب فتح» على كارت السفر اللي مفيهوش إصحاح مفتوح ومش محلول (والبانر فوق بقى بـbannerLines)
       const nline=(b)=>{ if(!gated) return ''; const a=adapt(b), x=LG.bookHasOpen(a)?null:LG.bookNextOpen(a); return x?`<small class="nx">${esc(LG.cardLine(x,now))}</small>`:''; };
-      const card=(b,d)=>`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}"><b>${esc(b.title)}</b><small>${!d?n(b.chapters.length)+' إصحاح':bookFull(b)?'✅ '+n(b.chapters.length)+' إصحاح · خلّصته':n(solvedN(b))+' من '+n(b.chapters.length)+' محلول · انتهى ميعاده'}</small>${d?'':nline(b)}</button>`;   // (v9.507) «خلّصته» للكامل بس
+      const card=(b,d)=>{ const t=`<b>${esc(b.title)}</b><small>${!d?n(b.chapters.length)+' إصحاح':bookFull(b)?'✅ '+n(b.chapters.length)+' إصحاح · خلّصته':n(solvedN(b))+' من '+n(b.chapters.length)+' محلول · انتهى ميعاده'}</small>${d?'':nline(b)}`;
+        return !d&&gated?`<button class="card2 bk bkg" data-a="book" data-id="${esc(b.id)}"><span class="bkin">${t}</span></button>`:`<button class="card2 bk" data-a="book" data-id="${esc(b.id)}">${t}</button>`; };   // (v9.507) «خلّصته» للكامل بس · (v9.512) كارت المخدوم الجاري بحدّ متحرك (.bkg)   // (v9.507) «خلّصته» للكامل بس
       const dn=gated?vis.filter(bookDone):[], cur=gated?vis.filter(b=>!bookDone(b)):vis;
       if(!dn.length) return `${rc}<div class="gate">${bn}${cur.map(b=>card(b,false)).join('')}${probs()}</div>`;   // مفيش سفر خلصان: نفس الشكل القديم بالظبط
       const op=doneOpen==null?!cur.length:doneOpen;   // (v9.506) لو كل الأسفار خلصت: القسم يبان مفتوح
@@ -323,7 +324,7 @@ export async function mount(el,ctx){
     if(st.s==='read'){ TTS.bind(el); }
     if(st.s==='result'&&isStudent) SY.accountArchived().then(a=>{ const bx=el.querySelector('#sendst'); if(a&&bx&&st.s==='result'){ bx.className='warn'; bx.textContent=ARCH_MSG; } }).catch(()=>{});   // (v9.494) حسابه اتأرشف؟ نبلّغه فوراً
     if(st.s==='result'&&isStudent) autoLines().then(L=>{ const bx=el.querySelector('#sendst'); if(!L||!bx||st.s!=='result') return; const h=L.map(esc).join('<br>'); if(bx.className==='warn'){ bx.innerHTML=bx.innerHTML+'<br>'+h; } else{ bx.className='warn'; bx.innerHTML=h; } }).catch(()=>{});   // (v9.497) + (v9.499): رسالة تلقائية حسب «نتيجة الشاشة دي»
-    if(gated&&(st.s==='books'||st.s==='chapters')){ const ws=[AC.nextChangeIn(),LG.nextWindowIn(books.map(adapt),AC.now())].filter(x=>x!=null), w=ws.length?Math.min(...ws):null; if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&(st.s==='books'||st.s==='chapters')&&!el.querySelector('.cm-open')) render(); },Math.min(w+1000,2147e6)); }   // (v9.509) + شاشة الإصحاحات: العقدة تتفتح لحظة الميعاد   // (v9.511) + حدّي ٢٤ ساعة/٣٠ يوم للأسفار اللي لسه ما بدأتش (nextWindowIn)   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
+    if(gated&&(st.s==='books'||st.s==='chapters')){ const ws=[AC.nextChangeIn(),LG.nextWindowIn(books.map(adapt),AC.now()),LG.nextDayChangeIn(books.map(adapt),AC.now())].filter(x=>x!=null), w=ws.length?Math.min(...ws):null; if(w!=null) bt=setTimeout(()=>{ if(el.isConnected&&(st.s==='books'||st.s==='chapters')&&!el.querySelector('.cm-open')) render(); },Math.min(w+1000,2147e6)); }   // (v9.509) + شاشة الإصحاحات: العقدة تتفتح لحظة الميعاد   // (v9.511) + حدّي ٢٤ ساعة/٣٠ يوم للأسفار اللي لسه ما بدأتش (nextWindowIn)   // (v9.39) السفر يظهر/يختفي لحظة الميعاد حتى أوفلاين
   }
 
   // (v9.486) «📊 تفاصيل الرفع (للدعم)»: مخفية افتراضياً؛ بعد الضغط تظهر ٣ أسطر + زر «📋 نسخ التفاصيل» (جوه الصندوق بس)
