@@ -828,3 +828,15 @@ font-family:'Cairo','Tajawal',system-ui,sans-serif;color:var(--ink,#EDF1F7)}
 .bkg .bkin{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px;border-radius:calc(var(--radius-lg) - 2px);background:linear-gradient(160deg,var(--bg-2) 0%,var(--bg-3) 100%)}
 @keyframes bkspin{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.bkg::before{animation:none}}
+/* (v9.513) بانر «دلوقتي جاري»: سطر أخضر للجاري + شريحة «N جاية» بتفتح/تقفل الجاية */
+.nxrow{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin:0;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:start;cursor:pointer}
+.nxrunw{flex:1;min-width:0}
+.nxr{display:block;line-height:1.7}
+.card2 b.nxrun{color:#4ADE9A}
+.nxcl{display:block;font-size:.75rem;font-weight:600;color:var(--ink-2)}
+.nxchip{flex:none;display:flex;align-items:center;gap:4px;min-height:32px;padding:4px 10px;box-sizing:border-box;border-radius:999px;border:1px solid var(--line-2);background:rgba(255,255,255,.05);color:var(--ink-2);font-size:.75rem;font-weight:600}
+.nxchip svg{transition:transform .2s}
+.nxsep{height:1px;background:var(--line);margin:12px 0 10px}
+[data-theme=light] .card2 b.nxrun{color:#12804f}
+[data-theme=light] .nxchip{background:rgba(0,0,0,.04)}
+@media (prefers-reduced-motion:reduce){.nxchip svg{transition:none}}
