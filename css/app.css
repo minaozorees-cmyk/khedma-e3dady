@@ -822,3 +822,9 @@ font-family:'Cairo','Tajawal',system-ui,sans-serif;color:var(--ink,#EDF1F7)}
 .cm-code-modal__desc{margin-bottom:14px}
 .cm-pop__message{font-weight:700}
 @media (prefers-reduced-motion:reduce){.cm *,.cm *::before,.cm *::after{animation:none!important;transition:none!important}}
+/* (v9.512) كارت السفر الجاري للمخدوم: حدّ متحرك (وردي/أزرق) بيلف حوالين الكارت. شكل Uiverse معدّل ليمشي مع الكارت المتغيّر الحجم والثيم. بيقف مع «تقليل الحركة». */
+.bkg{position:relative;overflow:hidden;padding:2px;border:0;align-items:stretch}
+.bkg::before{content:"";position:absolute;left:50%;top:50%;width:200%;height:0;padding-bottom:200%;pointer-events:none;background:conic-gradient(from 0deg,transparent 0 52%,#ff2288 72%,transparent 78%,#2268ff 94%,transparent 100%);animation:bkspin 4s linear infinite}
+.bkg .bkin{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px;border-radius:calc(var(--radius-lg) - 2px);background:linear-gradient(160deg,var(--bg-2) 0%,var(--bg-3) 100%)}
+@keyframes bkspin{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.bkg::before{animation:none}}
