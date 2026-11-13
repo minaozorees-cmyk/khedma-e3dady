@@ -61,11 +61,14 @@ export async function mount(el,ctx){
   const refHtml=(r)=>'<bdi>'+esc(String(r==null?'':r).replace(/\d/g,(d)=>'٠١٢٣٤٥٦٧٨٩'[d]))+'</bdi>';
   // (v9.510) المخدوم: السفر يظهر ككارت لو فيه إصحاح متاح، أو إصحاح جاي وهو **بدأ** قبل كده، أو كله منتهي (لو حلّ حاجة في أي سفر أو اتقفل من أقل من ٦٠ يوم). القواعد في js/chmap-logic.js (visibleBooks). الطاقم يرى كل الأسفار.
   // (v9.511) السفر اللي لسه ما بدأش مش كارت: بيظهر في البانر بـ🔒 بس (الأقرب + اللي ≤٢٤ ساعة، حد ٣٠ يوم) لحد ما أول إصحاح فيه يفتح (js/chmap-logic.js bannerLines)
-  const adapt=(b)=>({id:b.id,title:b.title,chapters:b.chapters.map(c=>({num:c.chapterNum,lock:AC.lock(b.id,c.chapterNum),solved:AC.isSolved(b.id,c.chapterNum)}))});
+  // (v9.513) closes = ميعاد قفل الإصحاح من المواعيد المخزّنة (AC.schedule) لو لسه جاي، وإلا null (لسطر «بيقفل …» في بانر «دلوقتي جاري»)
+  let cm=null, cmAt=0; const closesOf=(bid,num)=>{ const t=Date.now(); if(!cm||t-cmAt>500){ cm=new Map(typeof AC.schedule==='function'?AC.schedule().map(a=>[a.bid+'|'+a.num,a.c]):[]); cmAt=t; } const c=cm.get(bid+'|'+num); return c!=null&&c>AC.now()?c:null; };
+  const adapt=(b)=>({id:b.id,title:b.title,chapters:b.chapters.map(c=>({num:c.chapterNum,lock:AC.lock(b.id,c.chapterNum),solved:AC.isSolved(b.id,c.chapterNum),closes:closesOf(b.id,c.chapterNum)}))});
   const shownBooks=()=>{ if(!gated) return books; const ids=new Set(LG.visibleBooks(books.map(adapt),AC.now()).map(x=>x.id)); return books.filter(b=>ids.has(b.id)); };
   // (v9.506) المخدوم بس: الجاري فوق، والخلصان في قسم مطوي تحته.
   // (v9.507) المنطق المدمج: الإصحاح «منتهي» لو محلول (نفس تعريف v9.503)، أو اتقفل بميعاده ومحلّوش (AC.lock why='after'؛ المفتوح بكود بعد القفل مش منتهي).
   //   السفر «خلصان» (ينتقل للقسم المطوي) لو كل إصحاحاته منتهية وفيه محاولة واحدة على الأقل؛ و«كامل» لو كلها محلولة (الباقي = انتهى ميعاده).
+  let nxOpen=null;   // (v9.513) بانر «دلوقتي جاري»: null = تلقائي (مفتوح لو مفيش جاري، مطوي لو فيه جاري)، true/false = اختيار المخدوم (بيفضل مع إعادة الرسم)
   let doneOpen=null;   // null = تلقائي (مفتوح لو مفيش أسفار جارية)، true/false = اختيار المخدوم (بيفضل مع إعادة الرسم)
   const solvedN=(b)=>b.chapters.filter(c=>AC.isSolved(b.id,c.chapterNum)).length;
   // (v9.510) «خلصان» = كل إصحاحاته منتهية (من غير شرط محاولة واحدة على الأقل: السفر اللي فاتك كله يروح للقسم المطوي بدل ما يتخفي). «منتهي» = محلول أو اتقفل بميعاده ومحلّوش (js/chmap-logic.js bookEnded).
@@ -172,8 +175,13 @@ export async function mount(el,ctx){
       if(!books.length) return `<div class="ph">📖 لا توجد مسابقات بعد.<br>تُضاف كملفات JSON في مجلد books/</div>${probs()}`;
       const vis=shownBooks();
       // (v9.511) البانر: سطر لكل سفر (🔒 للسفر اللي لسه ما بدأش)؛ بيتحسب قبل حالة «مفيش كروت» عشان يظهر فوق رسالة «لا يوجد امتحان مفتوح اليوم»
-      const now=AC.now(), lines=gated?LG.bannerLines(books.map(adapt),now):[];
-      const bn=lines.length?`<div class="card2" id="nxbar" role="status">${lines.map((x,i)=>`<div class="nxl"${i?' style="margin-top:8px"':''}><b>${esc(LG.bannerText(x,now))}</b></div>`).join('')}</div>`:'';
+      const now=AC.now(), ab=books.map(adapt), up=gated?LG.bannerLines(ab,now):[], run=gated?LG.runningLines(ab):[];
+      // (v9.513) بانر واحد: سطر أخضر لكل سفر جاري (إصحاح مفتوح ومش محلول) + الجاية مطوية تحت شريحة «N جاية» وبتتفتح بالضغط؛ لو مفيش جاري الجاية مفتوحة لوحدها
+      const nxo=run.length&&up.length?nxOpen===true:true;
+      const runH=run.map((r,i)=>{ const c=LG.closeText(r,now); return `<span class="nxr"${i?' style="margin-top:8px"':''}><b class="nxrun">${esc(LG.runningText(r))}</b>${c?`<small class="nxcl">${esc(c)}</small>`:''}</span>`; }).join('');
+      const upH=up.map((x,i)=>`<div class="nxl"${i?' style="margin-top:8px"':''}><b>${esc(LG.bannerText(x,now))}</b></div>`).join('');
+      const bn=!(run.length||up.length)?'':!run.length?`<div class="card2" id="nxbar" role="status">${upH}</div>`:!up.length?`<div class="card2" id="nxbar" role="status">${runH}</div>`
+        :`<div class="card2" id="nxbar"><button type="button" class="nxrow" data-a="toggleNx" aria-expanded="${nxo}" aria-label="الإصحاحات الجاية"><span class="nxrunw">${runH}</span><span class="nxchip"><span>${esc(LG.chipText(up.length))}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${nxo?' style="transform:rotate(180deg)"':''}><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>${nxo?`<div class="nxsep"></div>${upH}`:''}</div>`;
       if(!vis.length) return `${rc}${bn?`<div class="gate">${bn}</div>`:''}<div class="ph">📖 لا يوجد امتحان مفتوح اليوم.<br><small>لو لسه ما فتحتش التطبيق بالنت من وقت قريب، افتحه مرة عشان توصلك آخر المواعيد.</small></div>`;
       // (v9.510) للمخدوم: سطر «أقرب فتح» على كارت السفر اللي مفيهوش إصحاح مفتوح ومش محلول (والبانر فوق بقى بـbannerLines)
       const nline=(b)=>{ if(!gated) return ''; const a=adapt(b), x=LG.bookHasOpen(a)?null:LG.bookNextOpen(a); return x?`<small class="nx">${esc(LG.cardLine(x,now))}</small>`:''; };
@@ -404,6 +412,7 @@ export async function mount(el,ctx){
       return;
     }
     if(a==='copydiag'){ const ok=await copyTxt(diagCopy), o=t.textContent; t.textContent=ok?'✅ اتنسخ':'تعذّر النسخ'; setTimeout(()=>{ if(t.isConnected) t.textContent=o; },1500); return; }
+    if(a==='toggleNx'){ nxOpen=t.getAttribute('aria-expanded')!=='true'; const y=el.scrollTop; await render(); el.scrollTop=y; return; }   // (v9.513) فتح/طي «N جاية» في بانر «دلوقتي جاري»
     if(a==='toggleDone'){ doneOpen=t.getAttribute('aria-expanded')!=='true'; const y=el.scrollTop; await render(); el.scrollTop=y; return; }   // (v9.506) فتح/طي «أسفار خلّصتها» من غير ما الصفحة ترجع لفوق
     if(a==='zin'||a==='zout'){   // (v9.39) بدون إعادة رسم (عشان عدّاد القراءة والإجابات ما يتأثروش)
       zoom=Math.min(ZMAX,Math.max(ZMIN,zoom+(a==='zin'?ZSTEP:-ZSTEP))); try{ localStorage.setItem(ZK,String(zoom)); }catch(x){}
