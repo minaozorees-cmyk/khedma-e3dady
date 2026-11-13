@@ -135,14 +135,29 @@ function partsAt(ts){
 }
 function pieces(ts,now){
   if(!Number.isFinite(ts)) return null;
-  const p=partsAt(ts), y=p.y!==partsAt(Number.isFinite(now)?now:Date.now()).y?' '+ar(p.y):'';
+  const p=partsAt(ts), n=partsAt(Number.isFinite(now)?now:Date.now()), y=p.y!==n.y?' '+ar(p.y):'';
   const h12=p.h%12===0?12:p.h%12;
-  return {day:DAYS_AR[new Date(Date.UTC(p.y,p.m-1,p.d)).getUTCDay()],date:ar(p.d)+' '+MONTHS_AR[p.m-1]+y,time:ar(h12)+':'+ar(String(p.mi).padStart(2,'0'))+' '+(p.h<12?'ص':'م')};
+  const rel=Math.round((Date.UTC(p.y,p.m-1,p.d)-Date.UTC(n.y,n.m-1,n.d))/DAY);   // (v9.512) فرق الأيام بتاريخ القاهرة (مش بعدد الساعات): ٠ = النهارده، ١ = بكرة
+  return {rel,day:DAYS_AR[new Date(Date.UTC(p.y,p.m-1,p.d)).getUTCDay()],date:ar(p.d)+' '+MONTHS_AR[p.m-1]+y,time:ar(h12)+':'+ar(String(p.mi).padStart(2,'0'))+' '+(p.h<12?'ص':'م')};
+}
+// (v9.512) اليوم بتاريخ القاهرة كرقم (للمقارنة بس)
+const dayKey=(ts)=>{ const p=partsAt(ts); return p.y*10000+p.m*100+p.d; };
+// (v9.512) بعد كام مللي ثانية يبدأ يوم جديد بتوقيت القاهرة (بحث ثنائي على الدقايق عشان يمشي صح مع تغيير التوقيت الصيفي)، عشان «بكرة» تبقى «النهارده» لوحدها
+export function msToNextDay(now){
+  const m0=Math.floor(now/6e4), d0=dayKey(m0*6e4); let lo=0, hi=26*60;   // lo = لسه نفس اليوم، hi = يوم تاني
+  if(dayKey((m0+hi)*6e4)===d0) return null;
+  while(hi-lo>1){ const mid=(lo+hi)>>1; if(dayKey((m0+mid)*6e4)===d0) lo=mid; else hi=mid; }
+  return (m0+hi)*6e4-now;
+}
+// (v9.512) لو فيه أي سفر عليه ميعاد فتح جاي (بيظهر في البانر أو سطر الكارت بـ«النهارده/بكرة»): بعد كام مللي ثانية نعيد الرسم عند بداية اليوم الجاي. null لو مفيش.
+export function nextDayChangeIn(books,now){
+  return books.some((b)=>b.chapters.length&&bookNextOpen(b)&&bookNextOpen(b).at>now)?msToNextDay(now):null;
 }
 // «يوم الأحد ١٥ نوفمبر الساعة ٨:٠٠ م» (السنة بتظهر بس لو غير السنة الحالية)
-export function fmtOpenAr(ts,now){ const x=pieces(ts,now); return x?'يوم '+x.day+' '+x.date+' الساعة '+x.time:''; }
-// «الأحد ١٥ نوفمبر ٨:٠٠ م» (للكارت)
-export function fmtOpenShort(ts,now){ const x=pieces(ts,now); return x?x.day+' '+x.date+' '+x.time:''; }
+// (v9.512) لو الميعاد النهارده أو بكرة (بتاريخ القاهرة): «النهارده الساعة ٨:٠٠ م» / «بكرة الساعة ٨:٠٠ م»
+export function fmtOpenAr(ts,now){ const x=pieces(ts,now); return !x?'':x.rel===0?'النهارده الساعة '+x.time:x.rel===1?'بكرة الساعة '+x.time:'يوم '+x.day+' '+x.date+' الساعة '+x.time; }
+// «الأحد ١٥ نوفمبر ٨:٠٠ م» (للكارت)، و(v9.512) «النهارده ٨:٠٠ م» / «بكرة ٨:٠٠ م»
+export function fmtOpenShort(ts,now){ const x=pieces(ts,now); return !x?'':x.rel===0?'النهارده '+x.time:x.rel===1?'بكرة '+x.time:x.day+' '+x.date+' '+x.time; }
 // نص البانر (نص عادي: index.js بيعمل esc) ونص سطر الكارت
 export const bannerText=(nx,now)=>'⏳ إصحاح '+ar(nx.num)+' من '+(nx.locked?'🔒 ':'')+'«'+nx.title+'» هيفتح '+fmtOpenAr(nx.at,now);   // (v9.511) 🔒 للسفر اللي لسه ما بدأش
 export const cardLine=(nx,now)=>'⏳ أقرب فتح: إصحاح '+ar(nx.num)+' · '+fmtOpenShort(nx.at,now);

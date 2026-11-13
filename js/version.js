@@ -3,4 +3,5 @@
 // (v9.509) خريطة الإصحاحات للمخدوم (modules/books/chmap.js + js/chmap-logic.js).
 // (v9.510) قايمة الأسفار: ظهور السفر بميعاده الجاي + بانر «أقرب فتح» (modules/books/index.js + js/chmap-logic.js).
 // (v9.511) السفر اللي لسه ما بدأش بيظهر في البانر بـ🔒 مش ككارت.
-export const APP_VERSION='v9.511';
+// (v9.512) «هيفتح النهارده/بكرة» في البانر وسطر الكارت + كارت المخدوم الجاري بحدّ متحرك (css/app.css .bkg).
+export const APP_VERSION='v9.512';
