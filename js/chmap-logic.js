@@ -107,12 +107,20 @@ export function bannerLines(books,now,{windowDays=WINDOW_DAYS,hotHours=HOT_HOURS
   out.sort((a,b)=>a.at-b.at||a.o-b.o);
   return out.map(({o,...r})=>r);
 }
+// (v9.513) «دلوقتي جاري»: سطر لكل سفر فيه إصحاح مفتوح ومش محلول (أقل رقم): [{id,title,num,closes}] بترتيب الأسفار. closes = ميعاد قفل الإصحاح (ms) أو null (الشكل adapt: c.closes اختياري)
+export function runningLines(books){
+  const out=[];
+  for(const b of books){ let best=null; for(const c of b.chapters) if(chKind(c)==='open'&&(!best||c.num<best.num)) best=c;
+    if(best) out.push({id:b.id,title:b.title,num:best.num,closes:Number.isFinite(best.closes)?best.closes:null}); }
+  return out;
+}
 // (v9.511) بعد كام مللي ثانية يتغيّر اللي بيظهر بسبب حدّ زمني (مش بسبب ميعاد فتح/قفل إصحاح: ده مؤقّت AC.nextChangeIn): دخول سفر لسه ما بدأش نافذة الـ٣٠ يوم أو الـ٢٤ ساعة، وانتهاء الـ٦٠ يوم للسفر المنتهي. null لو مفيش.
 export function nextWindowIn(books,now,{windowDays=WINDOW_DAYS,hotHours=HOT_HOURS,keepDays=KEEP_DAYS}={}){
   let best=null; const add=(t)=>{ const d=t-now; if(d>0&&(best==null||d<best)) best=d; };
   for(const b of books){ if(!b.chapters.length) continue; const x=bookNextOpen(b);
     if(x&&!bookStarted(b)){ add(x.at-windowDays*DAY); add(x.at-hotHours*36e5); }
-    else if(!x&&bookEnded(b)){ const t=closedAt(b); if(t!=null) add(t+keepDays*DAY); } }
+    else if(!x&&bookEnded(b)){ const t=closedAt(b); if(t!=null) add(t+keepDays*DAY); }
+    for(const c of b.chapters) if(chKind(c)==='open'&&Number.isFinite(c.closes)) add(c.closes-hotHours*36e5); }   // (v9.513) سطر «بيقفل …» بيظهر لما يفضل ≤ hotHours على القفل
   return best;
 }
 // أقرب فتح بين الأسفار اللي بتتمرّر (v9.510؛ من v9.511 البانر بقى بـbannerLines، والدالة دي لسه متاحة): {id,title,num,at} أو null. التعادل: الأسبق في الترتيب ثم الأقل رقماً
@@ -151,7 +159,7 @@ export function msToNextDay(now){
 }
 // (v9.512) لو فيه أي سفر عليه ميعاد فتح جاي (بيظهر في البانر أو سطر الكارت بـ«النهارده/بكرة»): بعد كام مللي ثانية نعيد الرسم عند بداية اليوم الجاي. null لو مفيش.
 export function nextDayChangeIn(books,now){
-  return books.some((b)=>b.chapters.length&&bookNextOpen(b)&&bookNextOpen(b).at>now)?msToNextDay(now):null;
+  return books.some((b)=>b.chapters.length&&((bookNextOpen(b)&&bookNextOpen(b).at>now)||b.chapters.some((c)=>chKind(c)==='open'&&Number.isFinite(c.closes)&&c.closes>now)))?msToNextDay(now):null;   // (v9.513) كمان لو فيه ميعاد قفل جاي (سطر «بيقفل النهارده/بكرة»)
 }
 // «يوم الأحد ١٥ نوفمبر الساعة ٨:٠٠ م» (السنة بتظهر بس لو غير السنة الحالية)
 // (v9.512) لو الميعاد النهارده أو بكرة (بتاريخ القاهرة): «النهارده الساعة ٨:٠٠ م» / «بكرة الساعة ٨:٠٠ م»
@@ -160,4 +168,8 @@ export function fmtOpenAr(ts,now){ const x=pieces(ts,now); return !x?'':x.rel===
 export function fmtOpenShort(ts,now){ const x=pieces(ts,now); return !x?'':x.rel===0?'النهارده '+x.time:x.rel===1?'بكرة '+x.time:x.day+' '+x.date+' '+x.time; }
 // نص البانر (نص عادي: index.js بيعمل esc) ونص سطر الكارت
 export const bannerText=(nx,now)=>'⏳ إصحاح '+ar(nx.num)+' من '+(nx.locked?'🔒 ':'')+'«'+nx.title+'» هيفتح '+fmtOpenAr(nx.at,now);   // (v9.511) 🔒 للسفر اللي لسه ما بدأش
+// (v9.513) نصوص بانر «دلوقتي جاري»: سطر الجاري، سطر القفل (لو ≤٢٤ ساعة بس: «بيقفل النهارده الساعة …»)، وشريحة «N جاية»
+export const runningText=(r)=>'▶️ دلوقتي جاري إصحاح '+ar(r.num)+' من «'+r.title+'»';
+export const closeText=(r,now)=>{ if(r.closes==null) return ''; const d=r.closes-now; return d>0&&d<=HOT_HOURS*36e5?'بيقفل '+fmtOpenAr(r.closes,now):''; };
+export const chipText=(n)=>n===1?'١ جاي':ar(n)+' جاية';
 export const cardLine=(nx,now)=>'⏳ أقرب فتح: إصحاح '+ar(nx.num)+' · '+fmtOpenShort(nx.at,now);
