@@ -1,11 +1,13 @@
 // حسابات الطاقم (v9.6) — للمالك فقط. بيتكلم مع Edge Function staff-admin (service_role جوّاها بس).
 // ⚠️ الواجهة للعرض؛ الحماية الفعلية: الدالة بتتحقق إن الطالب مالك من الـJWT وترفض لمس المالك/النفس/أي حساب بلا دور.
 import * as SY from '../../js/sync.js';
-import {fmt,SB} from '../../js/sapi.js';
+import {SB} from '../../js/sapi.js';
 import {esc} from '../../js/consts.js';
 import {copyText} from '../books/codes.js';
 const appUrl=()=>location.origin+location.pathname.replace(/[^/]*$/,'');
 const loginMsg=(email,pw)=>`سلام ونعمة 🌿\nبيانات دخولك لتطبيق خدمة إعدادي:\nالرابط: ${appUrl()}\nالإيميل: ${email}\n${pw?`كلمة السر المؤقتة: ${pw}\n(هيُطلب منك تغييرها أول دخول)`:'كلمة السر: لو نسيتها كلّمني أعملك كلمة جديدة.'}`;
+// (v9.514) تاريخ/وقت بتوقيت القاهرة صريح (مش توقيت جهاز المالك). فاضي ⇒ '—'
+export const fmtCairo=(t)=>{ const d=t?new Date(t):null; return d&&!isNaN(d)?d.toLocaleString('ar-EG',{timeZone:'Africa/Cairo',dateStyle:'medium',timeStyle:'short'}):'—'; };
 const ROLE_AR={servant:'خادم',priest:'كاهن',owner:'مالك'};
 const MSG={exists:'الإيميل ده مسجّل قبل كده.',weak:'كلمة السر من ٨ إلى ٧٢ حرف.',bad:'بيانات غير صحيحة.',not_allowed:'الحساب ده مش مسموح تعديله من هنا.',not_found:'الحساب غير موجود.',
   auth:'الجلسة انتهت. سجّل الدخول من جديد.',forbidden:'غير مسموح.',offline:'مفيش اتصال بالنت.',nofn:'الـEdge Function (staff-admin) غير منشورة بعد.',unavailable:'السيرفر مش متاح دلوقتي.'};
@@ -28,7 +30,8 @@ export async function mount(el,{role}={}){
         <div class="fld"><label for="np">كلمة سر مؤقتة <small>(٨ أحرف+)</small></label><input id="np" dir="ltr" autocomplete="off"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sec" style="${SB}" data-a="gen">توليد</button><button class="btn" style="${SB}" data-a="create">إنشاء</button></div></div>
       <div class="card2"><b>الحسابات (${S.users.length})</b>${S.users.map(u=>`<div class="row" style="display:block"><div class="row" style="border:0;padding:0"><span>${u.name?`<b>${esc(u.name)}</b> · `:''}<span dir="ltr">${esc(u.email||'—')}</span></span><span class="badge ${u.banned?'off':'on'}">${u.banned?'موقوف':ROLE_AR[u.role]||u.role}</span></div>
-        <div class="k">آخر دخول: ${fmt(u.last_sign_in_at)}</div>
+        <div class="k">آخر نشاط: ${u.last_seen_at?fmtCairo(u.last_seen_at):'لم يُسجَّل بعد'}</div>
+        <div class="k">آخر دخول بكلمة السر: ${fmtCairo(u.last_sign_in_at)}</div>
         <div style="margin-top:8px"><button class="btn sec" style="${SB}" data-a="nm-open" data-id="${u.id}">✏️ ${u.name?'تعديل الاسم':'إضافة اسم'}</button></div>
         ${S.nm===u.id?`<div style="margin-top:10px"><div class="fld"><label for="nm_in">الاسم</label><input id="nm_in" maxlength="60" autocomplete="off" value="${esc(u.name||'')}"></div><div class="err" id="nm_err"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" style="${SB}" data-a="nm-save" data-id="${u.id}">حفظ</button><button class="btn sec" style="${SB}" data-a="nm-cancel">إلغاء</button></div></div>`:''}
         ${u.role==='owner'?'':`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><select data-a="role" data-id="${u.id}" style="width:auto"><option value="servant"${u.role==='servant'?' selected':''}>خادم</option><option value="priest"${u.role==='priest'?' selected':''}>كاهن مسؤول</option></select>
