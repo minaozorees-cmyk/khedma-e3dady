@@ -287,6 +287,7 @@ export async function staffLogin(email,password){
   }
   await db.set('staff',staffPack(j,role));
   dispatchEvent(new Event('lawha:role'));
+  touchStaffSeen(0);   // v9.514: أول نشاط بعد الدخول (من غير انتظار)، صامت
   return {ok:true,role};
 }
 export async function staffLogout(){
@@ -310,6 +311,22 @@ export function staffAuth(force){ return staffBusy||(staffBusy=(async()=>{
     await db.del('staff'); return null; // الـrefresh token مرفوض (انتهى/سُحب)
   } finally{ staffBusy=null; }
 })()); }
+// (v9.514) «آخر نشاط» للطاقم: RPC touch_staff_seen (جدول staff_activity). auth.last_sign_in_at مش بيتحدّث مع تجديد التوكن، فده المصدر الدقيق.
+// الفاصل يتحدد من المنادي: ٣٠ دقيقة عند فتح التطبيق، ٢٥ عند رجوعه ظاهر، ٠ بعد الدخول. بيتخزّن لكل حساب (uid) عشان تبديل الحساب على نفس الجهاز ما يعطّلش. الفشل صامت (أوفلاين / SQL لسه ما اتشغّلش).
+const SEEN_KEY='staffSeenAt'; let seenBusy=false;
+export async function touchStaffSeen(minGapMs=30*60000){
+  if(seenBusy) return false; seenBusy=true;
+  try{
+    if(!enabled()||offline()) return false;
+    const s=await db.get('staff'); if(!s||!s.uid) return false;
+    const last=await db.get(SEEN_KEY), now=Date.now();
+    if(minGapMs>0&&last&&last.u===s.uid&&now>=last.t&&now-last.t<minGapMs) return false;
+    const r=await staffApi('/rest/v1/rpc/touch_staff_seen',{method:'POST',body:{}});
+    if(!r.ok) return false;
+    await db.set(SEEN_KEY,{u:s.uid,t:now}); return true;
+  }catch(e){ return false; }
+  finally{ seenBusy=false; }
+}
 // طلب REST بصلاحيات الخادم/المالك (للمرحلة ٧: لوحة التميز تقرأ results_first)
 export async function staffApi(path,opts={}){
   const s=await staffAuth(false); if(!s) throw new E(401);
@@ -517,10 +534,10 @@ export async function redeemCode(bookId,chapterNum,code){
 export function init(){
   if(!enabled()) return;
   A.setRemoteRestore(remoteRestore);
-  db.get('staff').then(s=>{ if(s&&navigator.onLine) staffAuth(true).then(n=>{ if(!n) dispatchEvent(new Event('lawha:role')); }).catch(()=>{}); }); // يتأكد أن الدور ما زال سارياً
+  db.get('staff').then(s=>{ if(s&&navigator.onLine) staffAuth(true).then(n=>{ if(!n) dispatchEvent(new Event('lawha:role')); else touchStaffSeen(30*60000); }).catch(()=>{}); }); // يتأكد أن الدور ما زال سارياً، وبعده يسجّل «آخر نشاط» (v9.514)
   addEventListener('online',()=>kick(500));
   addEventListener('lawha:queued',()=>kick(800));
-  if(typeof document!=='undefined') document.addEventListener('visibilitychange',()=>{ if(!document.hidden) kick(1500); });
+  if(typeof document!=='undefined') document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ kick(1500); touchStaffSeen(25*60000); } });   // v9.514: رجوع التطبيق ظاهر بعد ≥٢٥ دقيقة
   setInterval(()=>kick(0),120000);
   kick(2500);
   bootRevive();   // (v9.498)
