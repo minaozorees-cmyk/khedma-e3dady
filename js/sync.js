@@ -291,7 +291,7 @@ export async function staffLogin(email,password){
   return {ok:true,role};
 }
 export async function staffLogout(){
-  const s=await db.get('staff'); await db.del('staff'); await db.del('resultsBoard'); // v8: كاش النتائج فيه أسماء مخدومين؛ يُمسح مع الخروج
+  const s=await db.get('staff'); await db.del('staff'); await db.del('resultsBoard'); try{ await db.del('boardExtras'); }catch(e){} // v8: كاش النتائج فيه أسماء مخدومين؛ يُمسح مع الخروج (v9.515: وكاش المسجّلين كمان)
   // نمسح محلياً دائماً، حتى لو فشل الاتصال
   if(s&&s.access&&!offline()){ try{ await fetch(BASE+'/auth/v1/logout',{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+s.access}}); }catch(e){} }
   dispatchEvent(new Event('lawha:role'));
@@ -491,6 +491,33 @@ export async function resultsFirst({refresh=true}={}){
   }catch(e){ return fb(e.status===401||e.status===403?'auth':(!e.status?'offline':'server')); }
 }
 // TODO: keyset pagination بدل offset لو زاد العدد عن RB_CAP.
+
+// ===== (v9.515) قايمة المسجّلين + مواعيد الإصحاحات للوحة النتائج المباشرة (قراءة بس، بجلسة الطاقم؛ RLS بيحدد النطاق) =====
+// عشان اللوحة تعرض «لم يحل» ومقام الالتزام = الإصحاحات المفتوحة. أعمدة محددة بس: مفيش تليفونات/إيميلات/أكواد.
+// يرجع {roster,access,at,fromCache,error?,truncated?}. أوفلاين/فشل → آخر نسخة محفوظة (kv.boardExtras)؛ ومفيش نسخة → roster:null. error: 'auth'|'offline'|'server'
+const BX_PAGE=1000, BX_CAP=5000;
+export async function boardExtras({refresh=true}={}){
+  let cached; try{ cached=await db.get('boardExtras'); }catch(e){ cached=undefined; }
+  const fb=(error)=>({roster:cached?cached.roster:null,access:cached?cached.access:[],at:cached?cached.at:0,fromCache:true,truncated:!!(cached&&cached.truncated),error});
+  if(!refresh||!enabled()||offline()) return fb(cached?undefined:'offline');
+  try{
+    const pull=async(path)=>{
+      const out=[]; let trunc=false;
+      for(let off=0;;off+=BX_PAGE){
+        if(off>=BX_CAP){ trunc=true; break; }
+        const r=await staffApi(`${path}&limit=${BX_PAGE}&offset=${off}`);
+        if(!r.ok) throw new E(r.status);
+        const part=await r.json(); out.push(...part); if(part.length<BX_PAGE) break;
+      }
+      return {rows:out,trunc};
+    };
+    const pr=await pull('/rest/v1/profiles?select=id,name,grade,gender&deleted_at=is.null&archived_at=is.null&order=id.asc');
+    const ac=await pull('/rest/v1/chapter_access?select=book_id,chapter_num,opens_at,closes_at&order=book_id.asc,chapter_num.asc');
+    const out={roster:pr.rows,access:ac.rows,at:Date.now(),truncated:pr.trunc||ac.trunc};
+    try{ await db.set('boardExtras',out); }catch(e){}
+    return {...out,fromCache:false};
+  }catch(e){ return fb(e.status===401||e.status===403?'auth':(!e.status?'offline':'server')); }
+}
 
 // ===== (v7) الأسفار من السيرفر (قراءة عامة بمفتاح anon؛ لا حاجة لهوية مجهولة) =====
 // يرجع null لو الخدمة معطّلة/أوفلاين/فشل الطلب (فيرجع المستدعي للكاش ثم الملفات المحلية).
