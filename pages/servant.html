@@ -938,6 +938,38 @@ body .btn-row .btn-manual,body .btn-row .btn-clear-input{flex:1 1 calc(50% - 5px
   html,body{background:#fff!important;color:#000!important;}
 }
 </style>
+<style id="ab-matrix-v9517">
+/* (v9.517) تبويب «🗂 كل الأسفار» — كل الكلاسات بادئة .ab-؛ ألوان بمتغيّرات الثيم (غامق/فاتح) */
+.ab-note{text-align:center;color:var(--text2);font-size:.78rem;margin:.3rem 0 .6rem}
+.ab-scroll{max-height:70vh;overflow:auto;max-width:100%;border:1px solid var(--border);border-radius:12px;-webkit-overflow-scrolling:touch}
+.ab-tbl{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;font-size:.8rem}
+.ab-tbl th,.ab-tbl td{padding:.4rem .5rem!important;text-align:center!important;vertical-align:top;white-space:nowrap}
+.ab-tbl thead th{position:sticky;top:0;z-index:3;background:var(--bg3)!important;color:var(--gold)!important;white-space:normal!important;vertical-align:middle}
+.ab-tbl tbody tr:nth-child(odd) td,.ab-tbl tbody tr:nth-child(odd):hover td{background:var(--row-a,var(--bg2))!important}
+.ab-tbl tbody tr:nth-child(even) td,.ab-tbl tbody tr:nth-child(even):hover td{background:var(--row-b,var(--bg3))!important}
+.ab-tbl .ab-c-rk{position:sticky;right:0;z-index:2;width:38px;min-width:38px;max-width:38px;padding-inline:.2rem!important}
+.ab-tbl .ab-c-nm{position:sticky;right:38px;z-index:2;min-width:104px;max-width:132px;white-space:normal!important;text-align:right!important;border-left:1px solid var(--border)!important}
+.ab-tbl thead .ab-c-rk,.ab-tbl thead .ab-c-nm{z-index:5}
+.ab-c-nm b{color:var(--gold);font-weight:800}
+.ab-c-nm small{display:block;color:var(--text2);font-size:.68rem;font-weight:400}
+.ab-h-bk{min-width:118px}
+.ab-tbl .ab-tot{border-right:2px solid var(--gold)!important}
+.ab-cell{min-width:118px;line-height:1.5}
+.ab-na{color:var(--text2)!important;vertical-align:middle}
+.ab-l1 b{font-size:.95rem}
+.ab-pr{display:flex;align-items:center;gap:.35rem;margin:.15rem 0}
+.ab-bar{flex:1;height:5px;border-radius:3px;background:var(--border);overflow:hidden;display:block}
+.ab-bar i{display:block;height:100%;background:currentColor}
+.ab-pc{font-weight:800;font-size:.72rem}
+.ab-l2{font-size:.76rem}
+.ab-l3{font-size:.72rem;color:var(--text2)}
+.ab-lv-g .ab-pr{color:var(--green)}
+.ab-lv-y .ab-pr{color:var(--gold-2,var(--yellow))}
+.ab-lv-o .ab-pr{color:var(--orange,var(--yellow))}
+.ab-lv-r .ab-pr{color:var(--red)}
+.ab-pdf .ab-scroll{max-height:none!important;overflow:visible!important}
+.ab-pdf .ab-tbl th,.ab-pdf .ab-tbl td{position:static!important}
+</style>
 </head>
 <body>
 <div id="gate"><div style="font-size:3rem">🔒</div><div id="gateMsg">جارٍ التحقق من الصلاحية…</div></div>
@@ -1220,6 +1252,7 @@ body .btn-row .btn-manual,body .btn-row .btn-clear-input{flex:1 1 calc(50% - 5px
       <button data-lv="commit">📋 الالتزام</button>
       <button data-lv="summary">🖨 مجمع</button>
       <button data-lv="detail">🔎 تفصيل</button>
+      <button data-lv="books">🗂 كل الأسفار</button>
       <button id="liveRefresh">🔄 تحديث</button>
     </div>
     <div class="live-sum" id="liveSum"></div>
@@ -1230,6 +1263,11 @@ body .btn-row .btn-manual,body .btn-row .btn-clear-input{flex:1 1 calc(50% - 5px
       <button data-lx="pdf">📥 PDF</button>
       <button data-lx="copy">📋 نسخ</button>
       <button data-lx="json">🧾 JSON</button>
+    </div>
+    <div class="live-exp" id="liveBooksExp" style="display:none">
+      <button data-abx="csv">📄 CSV (مصفوفة)</button>
+      <button data-abx="xls">📊 Excel (مصفوفة)</button>
+      <button data-abx="copy">📋 نسخ (مصفوفة)</button>
     </div>
   </div>
 </div>
@@ -3107,6 +3145,63 @@ async function livePdf(){
 })();
 // v9.11: شريط التبويبات الداخلي مخفي، فالقائمة الجانبية تفتح الصفحة بـ#live (نتائج مباشرة) أو #board أو #decode
 (function hashTab(){ const t=(location.hash||'').slice(1); if(['decode','board','live'].includes(t)) switchMainTab(t); })();
+</script>
+<script>
+// (v9.517) تبويب «🗂 كل الأسفار» — إضافة فقط. بيقرا (قراءة بس) من اللي في سكربت النتائج المباشرة: LIVE / liveFilters / liveCtx / liveEl / liveDownload / liveStamp / liveCsvText / liveXmlText / showToast،
+// وما بيكتبش في أي متغيّر أو دالة منهم. الربط: MutationObserver على #liveTableWrap بيرسم المصفوفة مكان اللي رسمته liveRender لما LIVE.view==='books'.
+(function abInit(){
+  const wrap=document.getElementById('liveTableWrap'), exp=document.getElementById('liveBooksExp'), panel=document.getElementById('panel-live');
+  if(!wrap||!exp||!panel||typeof LIVE==='undefined') return;
+  let MX=null, loading=null, failed=false, busy=false;
+  const on=()=>LIVE.view==='books';
+  const ready=()=>on()&&LIVE.loaded&&!!LIVE.RO;
+  // التحميل كسول (أول مرة بس) — فشله ما بيأثّر على باقي اللوحة
+  const load=()=>{ if(MX) return Promise.resolve(MX); if(!loading) loading=import('../js/live-matrix.js').then(m=>{ MX=m; failed=false; return m; }).catch(()=>{ failed=true; return null; }).finally(()=>{ loading=null; }); return loading; };
+  const model=()=>{ const ex=LIVE.extras, c=liveCtx();
+    return MX.buildMatrixModel({rows:LIVE.rows,roster:ex?ex.roster:null,access:c.access,bookChapters:c.bookChapters,bookTitles:c.bookTitles,activeBooks:c.activeBooks,filters:liveFilters(),now:c.now,truncated:LIVE.truncated||!!(ex&&ex.truncated)}); };
+  const mo=new MutationObserver(()=>{ if(!busy) sync(); });
+  function put(html,sum){ busy=true; wrap.innerHTML=html; if(sum!=null) liveEl('liveSum').textContent=sum; mo.takeRecords(); busy=false; }
+  function sync(){
+    exp.style.display=on()?'':'none';
+    if(!ready()) return;                                   // اللوحة لسه بتحمّل/الوحدة فاشلة: نسيب اللي رسمته
+    if(!MX){
+      put(`<div class="live-empty">${failed?'تعذّر تحميل التبويب — حدّث الصفحة':'⏳ جاري تحميل التبويب…'}</div>`);
+      if(!failed) load().then(()=>{ if(ready()) sync(); });
+      return;
+    }
+    try{ const m=model(); put(MX.matrixHtml(m),MX.matrixSummary(m)); }
+    catch(e){ put('<div class="live-empty">تعذّر عرض التبويب</div>'); }
+  }
+  mo.observe(wrap,{childList:true});
+  document.querySelectorAll('[data-lv]').forEach(b=>b.addEventListener('click',()=>{ exp.style.display=on()?'':'none'; if(b.dataset.lv==='books'&&failed&&!MX){ failed=false; sync(); } }));
+  // التصدير الخاص بالتبويب
+  exp.addEventListener('click',e=>{ const b=e.target.closest('[data-abx]'); if(!b) return;
+    if(!MX||!LIVE.RO){ showToast('تعذّر تحميل وحدة التصدير','error'); return; }
+    const m=model(); if(!m.students.length){ showToast('لا توجد بيانات للتصدير','error'); return; }
+    const kind=b.dataset.abx;
+    if(kind==='csv'){ liveDownload(`مصفوفة_الأسفار_${liveStamp()}.csv`,'\uFEFF'+liveCsvText(MX.matrixExportRows(m)),'text/csv;charset=utf-8'); showToast('✅ تم تصدير CSV'); }
+    else if(kind==='xls'){ liveDownload(`مصفوفة_الأسفار_${liveStamp()}.xls`,liveXmlText(MX.matrixExportRows(m)),'application/vnd.ms-excel'); showToast('✅ تم تصدير Excel'); }
+    else if(kind==='copy'){
+      const t=MX.matrixCopyText(m);
+      (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>showToast('✅ تم النسخ'),()=>{
+        const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); showToast('✅ تم النسخ'); }catch(x){ showToast('تعذّر النسخ','error'); } ta.remove(); });
+    }
+  });
+  // PDF في التبويب ده بس: الحاوية max-height فلازم نفكّها لحظة التصوير (وإلا PDF يطلع مقصوص). زر PDF الموجود بيتعطّل في الحالة دي فقط (التقاط على الأب قبل الهدف)
+  panel.addEventListener('click',e=>{ if(!on()||!e.target.closest('[data-lx="pdf"]')) return; e.stopImmediatePropagation(); abPdf(); },true);
+  async function abPdf(){
+    if(!window.html2canvas||!window.jspdf){ showToast('مكتبات PDF غير موجودة في lib/','error'); return; }
+    showToast('⏳ جاري إنشاء PDF...'); wrap.classList.add('ab-pdf');
+    try{
+      const canvas=await html2canvas(wrap,{scale:2,useCORS:true,backgroundColor:'#0d1e38',logging:false,width:wrap.scrollWidth,windowWidth:wrap.scrollWidth});
+      const {jsPDF}=window.jspdf, pageW=794, pageH=Math.ceil(canvas.height*(pageW/canvas.width));
+      const pdf=new jsPDF({orientation:pageH>pageW?'portrait':'landscape',unit:'px',format:[pageW,pageH]});
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,pageW,pageH,'','FAST');
+      pdf.save(`مصفوفة_الأسفار_${liveStamp()}.pdf`); showToast('✅ تم تصدير PDF');
+    }catch(x){ showToast('حدث خطأ أثناء التصدير: '+x.message,'error'); }
+    finally{ wrap.classList.remove('ab-pdf'); }
+  }
+})();
 </script>
 <script type="module">
 // v8: بوابة الدور. تقرأ جلسة الخادم/المالك من IndexedDB (نفس origin التطبيق). واجهة فقط: ملف الصفحة نفسه علني،
