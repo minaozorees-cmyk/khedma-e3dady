@@ -18,27 +18,46 @@ function build(entries,label){
   }
   return {books,problems};
 }
+// بصمة الأسفار = الـid + updated_at لكل سفر (مرتّبة). بتتقارن بين الكاش والسيرفر عشان نعرف لو فيه تغيير يستاهل إعادة الرسم.
+const fpOf=(m)=>Object.keys(m||{}).sort().map(id=>id+':'+(m[id]&&m[id].u)).join('|');
 // null = السيرفر غير متاح. نحدّث الكاش بالأسفار التي تغيّر updated_at فقط.
-async function fromServer(){
+// (v9.516) الأسفار المتغيّرة بتتنزّل بالتوازي (Promise.all) بدل واحد ورا التاني؛ النتيجة والترتيب وقاعدة «فشل التحميل ← نبقي القديم» زي ما هي.
+async function syncServer(){
   const list=await SY.booksList(); if(!Array.isArray(list)) return null;
-  const old=(await db.get('booksCache'))||{}, fresh={};
-  for(const row of list){
-    const id=String(row&&row.id||''); if(!id) continue;
+  const old=(await db.get('booksCache'))||{}, rows=[];
+  for(const row of list){ const id=String(row&&row.id||''); if(id) rows.push({id,row}); }
+  const got=await Promise.all(rows.map(async({id,row})=>{
     const c=old[id];
-    if(c&&c.u===row.updated_at){ fresh[id]=c; continue; }
+    if(c&&c.u===row.updated_at) return c;
     const d=await SY.booksGet(id);
-    if(d&&Array.isArray(d.chapters)) fresh[id]={u:row.updated_at,title:row.title,rm:row.read_minutes,chapters:d.chapters,lib:d.lib||'',qn:d.qn||0};
-    else if(c) fresh[id]=c; // فشل التحميل: نبقي النسخة القديمة
-  }
+    if(d&&Array.isArray(d.chapters)) return {u:row.updated_at,title:row.title,rm:row.read_minutes,chapters:d.chapters,lib:d.lib||'',qn:d.qn||0};
+    return c||null;   // فشل التحميل: نبقي النسخة القديمة
+  }));
+  const fresh={}; rows.forEach(({id},i)=>{ if(got[i]) fresh[id]=got[i]; });
   if(!list.length) await db.del('booksCache'); else await db.set('booksCache',fresh);
-  return build(fresh,'السيرفر/');
+  return {res:build(fresh,'السيرفر/'),fp:fpOf(fresh)};
 }
+async function fromServer(){ const s=await syncServer(); return s?s.res:null; }
 async function fromCache(){ const c=await db.get('booksCache'); return c&&Object.keys(c).length?build(c,'الكاش/'):null; }
 export async function loadAll(){
   const srv=await fromServer();
   if(srv&&srv.books.length) return srv;
   if(!srv){ const c=await fromCache(); if(c&&c.books.length) return c; }
   return fromLocal();
+}
+// (v9.516) Cache First للمخدوم: لو الكاش موجود يرجّع الأسفار منه فوراً (من غير شبكة)، وفي الخلفية يحدّث من السيرفر؛ لو بصمة الأسفار اتغيّرت بس بينادي onFresh(النتيجة الجديدة). الكاش فاضي (أول مرة) = نفس loadAll بالظبط. السيرفر مش متاح = الكاش يكفي.
+export async function loadProgressive(onFresh){
+  let c=null; try{ c=await db.get('booksCache'); }catch(e){}
+  const cached=c&&Object.keys(c).length?build(c,'الكاش/'):null;
+  if(!cached||!cached.books.length) return loadAll();
+  const fp0=fpOf(c);
+  (async()=>{ try{
+    const s=await syncServer(); if(!s) return;
+    let r=s.res, same=s.fp===fp0;
+    if(!r.books.length){ r=await fromLocal(); same=false; }   // زي loadAll: السيرفر فاضي ← الملفات المحلية
+    if(!same&&typeof onFresh==='function') onFresh(r);
+  }catch(e){} })();
+  return cached;
 }
 async function fromLocal(){
   const problems=[]; let idx;

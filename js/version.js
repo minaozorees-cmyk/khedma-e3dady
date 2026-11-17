@@ -7,4 +7,5 @@
 // (v9.513) بانر «دلوقتي جاري إصحاح N من السفر» + الجاية مطوية تحت «N جاية» (modules/books/index.js + js/chmap-logic.js + css/app.css).
 // (v9.514) «حسابات الطاقم»: آخر نشاط (staff_activity + touch_staff_seen) + آخر دخول بكلمة السر، بتوقيت القاهرة (modules/owner/staff.js + js/sync.js + staff-admin).
 // (v9.515) لوحة «نتائج مباشرة»: كل المسجّلين (حلّوا/لم يحلّوا) + مقام الالتزام = الإصحاحات المفتوحة (js/live-roster.js + js/sync.js boardExtras + pages/servant.html).
-export const APP_VERSION='v9.515';
+// (v9.516) تسريع المخدوم: النجوم تقف في القراءة/الامتحان، الأسفار من الكاش فوراً + تنزيل بالتوازي، سطر «جارٍ التحقق من الميعاد…» (js/ui.js + js/books.js + modules/books/index.js).
+export const APP_VERSION='v9.516';

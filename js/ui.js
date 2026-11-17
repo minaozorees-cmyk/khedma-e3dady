@@ -52,10 +52,11 @@ function stars(){
     }
     raf=requestAnimationFrame(draw);
   }
-  const go=()=>{ cancelAnimationFrame(raf); if(!document.hidden&&getTheme()==='dark') raf=requestAnimationFrame(draw); else ctx.clearRect(0,0,c.width,c.height); };
+  const go=()=>{ cancelAnimationFrame(raf); if(!document.hidden&&getTheme()==='dark'&&!document.body.classList.contains('calm')) raf=requestAnimationFrame(draw); else ctx.clearRect(0,0,c.width,c.height); };   // (v9.516) calm = شاشة قراءة/امتحان: النجوم واقفة
   addEventListener('resize',()=>{ init(); go(); });
   document.addEventListener('visibilitychange',go);
   addEventListener('lawha:theme',go);
+  addEventListener('lawha:calm',go);
   init(); go();
 }
 
