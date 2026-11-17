@@ -840,3 +840,6 @@ font-family:'Cairo','Tajawal',system-ui,sans-serif;color:var(--ink,#EDF1F7)}
 [data-theme=light] .card2 b.nxrun{color:#12804f}
 [data-theme=light] .nxchip{background:rgba(0,0,0,.04)}
 @media (prefers-reduced-motion:reduce){.nxchip svg{transition:none}}
+/* (v9.516) سطر «جارٍ التحقق من الميعاد…» أثناء ضغطة الإصحاح: عائم أسفل الشاشة، مش على زر (نافذة الإصحاح بتتقفل بالضغط) */
+.chk{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:1200;max-width:90vw;padding:9px 18px;border-radius:999px;background:var(--bg-2);border:1px solid var(--gold);color:var(--gold-2);font-size:.85rem;font-weight:700;box-shadow:0 6px 22px rgba(0,0,0,.4);pointer-events:none;text-align:center}
+[data-theme=light] .chk{color:var(--gold-dim)}
