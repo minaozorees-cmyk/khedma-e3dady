@@ -1,4 +1,4 @@
-import {loadAll,ensureText} from '../../js/books.js';
+import {loadProgressive,ensureText} from '../../js/books.js';
 import * as X from '../../js/exam-engine.js';
 import * as R from '../../js/results.js';
 import * as A from '../../js/auth.js';
@@ -32,7 +32,9 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 
 export async function mount(el,ctx){
   el.innerHTML='<div class="ph">جارٍ التحميل…</div>';
-  const {books,problems}=await loadAll();
+  // (v9.516) Cache First: الأسفار من الكاش فوراً، والتحديث بيوصل في الخلفية (fresh) ويتطبّق من غير ما يبدّل محتوى إصحاح بيتقرا أو بيتمتحن
+  let pend=null, live=false;   // pend = تحديث وصل وفاضل يتطبّق · live = الشاشة اتفتحت (التحديث اللي قبلها بيتطبّق في أول render)
+  let {books,problems}=await loadProgressive((r)=>{ pend=r; if(live) applyFresh(); });
   const prof=await A.activeProfile(), pid=prof?prof.id:'local', nm=esc((prof&&prof.name.split(' ')[0])||'حبيبي');
   const staff=ctx.role!=='student', isStudent=ctx.role==='student'&&!!prof, gated=ctx.role==='student'; // v9.21: القفل بالمواعيد على المخدوم فقط
   // (v9.498) «محتاج كود»: الجهاز فقد ربط الملكية والربط الصامت بالكود المحلي ما نفعش ← شريط أصفر بحقل كود في شاشة المسابقة والنتيجة (بيتبني بس لو ACC.needsCode)
@@ -314,6 +316,24 @@ export async function mount(el,ctx){
     if(st.s==='exam'&&tm){ qStop(); T.pause(tm,pnow()); persist(); }
     else if(st.s==='read'&&rt){ rStop(); T.pause(rt,pnow()); rPersist(); } };
   document.addEventListener('visibilitychange',onVis); addEventListener('pagehide',onHide);
+  // (v9.516) تحديث الأسفار: للقوايم والخريطة فقط (books/chapters/verses/locked) ومن غير popover مفتوح؛ غير كده بيستنى لحد أول رجوع لقايمة/خريطة
+  const FRESH_OK=['books','chapters','verses','locked'];
+  function applyFresh(){
+    if(!pend||stale()||!FRESH_OK.includes(st.s)||el.querySelector('.cm-open')) return;
+    books=pend.books; problems=pend.problems; pend=null; cm=null; render();
+  }
+  // (v9.516) النجوم بتقف في القراءة والتأمل والامتحان بس (body.calm + حدث lawha:calm بيسمعه js/ui.js stars)
+  const CALM=['read','med','exam'];
+  const calmSet=(v)=>{ try{ const b=document.body; if(!b||b.classList.contains('calm')===v) return; b.classList.toggle('calm',v); dispatchEvent(new Event('lawha:calm')); }catch(e){} };   // تجميلي: أي فشل ما يوقفش القراءة/الامتحان
+  const stale=()=>el.onclick!==onClick;   // الراوتر بيصفّر main.onclick لما يفتح صفحة تانية (والـel نفسه بيتعاد استخدامه) ← الـmount ده بقى قديم
+  let mo=null; const calmOff=()=>{ if(mo) mo.disconnect(); removeEventListener('hashchange',calmOff); calmSet(false); };
+  try{ if(typeof MutationObserver==='function'){ mo=new MutationObserver(()=>{ if(stale()) calmOff(); }); mo.observe(el,{childList:true}); } }catch(e){}   // صفحة تانية استبدلت محتوى main (من غير hashchange: «دخول»، تغيير الدور)
+  addEventListener('hashchange',calmOff);
+  // (v9.516) سطر «جارٍ التحقق من الميعاد…» أثناء التحقق في ضغطة الإصحاح (بيظهر بعد ٢٥٠ms بس) + حارس الضغطتين
+  const CHK_MS=1000, CHK_SHOW=250;
+  let chkBusy=false, chkOn=false;
+  const chkPaint=()=>{ if(chkOn&&!el.querySelector('.chk')) el.insertAdjacentHTML('beforeend','<div class="chk" role="status">⏳ جارٍ التحقق من الميعاد…</div>'); };
+  const chkHide=()=>{ chkOn=false; const x=el.querySelector('.chk'); if(x) x.remove(); };
   async function render(){
     clearInterval(tick); clearTimeout(bt); qStop(); rStop(); if(rt){ T.pause(rt,pnow()); rPersist(); }   // (v9.489) وقت القراءة يقف ويتحفظ عند أي إعادة رسم، ويكمل في rSync
     // حماية: لو تغيّر أو اختفى السفر/الإصحاح (بعد إعادة تحميل) نرجع لقائمة آمنة بدل ما نرمي خطأ
@@ -322,11 +342,14 @@ export async function mount(el,ctx){
     if(st.s==='locked'&&!AC.lock(st.bid,st.num)) enterRead(st.bid,st.num);   // اتفتح (ميعاده جه أو التحديث وصل)
     if(st.s==='result'&&!st.res) st={s:'chapters',bid:st.bid};
     if(st.s==='resume'&&!sess) st={s:'chapters',bid:st.bid};
+    if(pend&&FRESH_OK.includes(st.s)){ books=pend.books; problems=pend.problems; pend=null; cm=null;   // (v9.516) تحديث الأسفار اللي وصل وانت في القراءة/الامتحان: بيتطبّق أول ما ترجع لقايمة/خريطة
+      if(['chapters','verses','locked'].includes(st.s)&&!book()) st={s:'books'}; else if(st.s==='locked'&&!chap()) st={s:'chapters',bid:st.bid}; }
+    if(!stale()) calmSet(CALM.includes(st.s));   // (v9.516)
     let html=await views[st.s]();
     if(flash&&st.s!=='exam'){ html=`<div class="card2">ℹ️ ${esc(flash)}</div>`+html; flash=''; }
     if(['read','med','exam','verses','result'].includes(st.s)) html=`<div class="zm" style="--qz:${zoom/100}">${html}</div>`;   // (v9.39) نطاق التكبير
     if((st.s==='books'||st.s==='result')&&ncOn()) html=ncBanner()+html;   // (v9.498) البانر الأصفر
-    TTS.stop(); el.innerHTML=html; el.scrollTop=0; qSync(); rSync();
+    TTS.stop(); el.innerHTML=html; el.scrollTop=0; chkPaint(); qSync(); rSync();
     if(st.s==='chapters'&&gated&&cmData){ const bid=st.bid;   // (v9.509) تشغيل الخريطة بعد رسم الهيكل
       CM.init(el.querySelector('.cm'),{key:pid+'|'+bid,chapters:cmData,verify:(num,code)=>AC.verify(bid,num,code),unlock:(num)=>AC.markUnlocked(bid,num),reload:async()=>cmBuild(await R.all(),book()),open:cmOpen,resumable:(num)=>!!(sess&&sess.bid===bid&&sess.num===num)}); }
     if(st.s==='read'){ TTS.bind(el); }
@@ -401,7 +424,7 @@ export async function mount(el,ctx){
     btn.disabled=false; btn.textContent=lbl;
     if(ncOn()&&!el.querySelector('#ncbar')) await render();   // (v9.498) اتعلّم «محتاج كود» أثناء الإرسال: نرسم البانر
   }
-  el.onclick=async(e)=>{
+  const onClick=el.onclick=async(e)=>{
     const t=e.target.closest('[data-a]'); if(!t||t.disabled) return; const a=t.dataset.a, k=Number(t.dataset.k);
     if(a==='nclink'){ await ncLink(t); return; }   // (v9.498)
     if(a==='send'){ await sendNow(t); return; }
@@ -429,14 +452,18 @@ export async function mount(el,ctx){
     else if(a==='toRead'){ st={s:'read',bid:st.bid,num:st.num}; }
     else if(a==='med'){ if(st.s==='read'&&!unlocked.has(ukey())&&rLeftMs()>0) return; unlocked.add(ukey()); st={s:'med',bid:st.bid,num:st.num}; }
     else if(a==='chap'){
-      const num=Number(t.dataset.n); sess=await S.load();
-      if(sess&&sess.profileId!==pid){ await S.clear(); sess=null; }
-      if(sess&&S.expired(sess)) flash=await closeSession(sess,'expired');
-      if(sess&&!findCh(sess.bid,sess.num)){ await S.clear(); sess=null; }
-      if(gated) await Promise.race([AC.refresh(),sleep(2000)]);   // v9.21: أحدث مواعيد (حدّ أقصى ٢ث)
-      const lk=gated&&AC.lock(st.bid,num)&&!(sess&&sess.bid===st.bid&&sess.num===num);   // جلسة بدأت قبل القفل تكمل
-      if(lk) st={s:'locked',bid:st.bid,num};
-      else if(sess) st={s:'resume',bid:st.bid,num}; else enterRead(st.bid,num);
+      if(chkBusy) return;   // (v9.516) حارس الضغطتين: التحقق شغّال ← أي ضغطة إصحاح تانية تتجاهل
+      chkBusy=true; const ct=gated?setTimeout(()=>{ chkOn=true; chkPaint(); },CHK_SHOW):null;   // العدّاد من لحظة الضغطة: السطر يظهر لو الانتظار عدّى ٢٥٠ms
+      try{
+        const num=Number(t.dataset.n); sess=await S.load();
+        if(sess&&sess.profileId!==pid){ await S.clear(); sess=null; }
+        if(sess&&S.expired(sess)) flash=await closeSession(sess,'expired');
+        if(sess&&!findCh(sess.bid,sess.num)){ await S.clear(); sess=null; }
+        if(gated) await Promise.race([AC.refresh(),sleep(CHK_MS)]);   // v9.21: أحدث مواعيد (حدّ أقصى ٢ث) ← (v9.516) ١ث + سطر «جارٍ التحقق من الميعاد…» لو طوّل
+        const lk=gated&&AC.lock(st.bid,num)&&!(sess&&sess.bid===st.bid&&sess.num===num);   // جلسة بدأت قبل القفل تكمل
+        if(lk) st={s:'locked',bid:st.bid,num};
+        else if(sess) st={s:'resume',bid:st.bid,num}; else enterRead(st.bid,num);
+      } finally{ clearTimeout(ct); chkHide(); chkBusy=false; }
     }
     else if(a==='resume'){
       const h=sess&&hydrate(sess);
@@ -494,5 +521,5 @@ export async function mount(el,ctx){
   sess=await S.load();
   if(sess&&sess.profileId!==pid){ await S.clear(); sess=null; }
   if(sess&&S.expired(sess)) flash=await closeSession(sess,'expired');
-  render();
+  live=true; render();   // (v9.516) أي تحديث وصل قبل أول رسم بيتطبّق جوه render
 }
