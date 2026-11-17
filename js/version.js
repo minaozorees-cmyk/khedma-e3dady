@@ -8,4 +8,5 @@
 // (v9.514) «حسابات الطاقم»: آخر نشاط (staff_activity + touch_staff_seen) + آخر دخول بكلمة السر، بتوقيت القاهرة (modules/owner/staff.js + js/sync.js + staff-admin).
 // (v9.515) لوحة «نتائج مباشرة»: كل المسجّلين (حلّوا/لم يحلّوا) + مقام الالتزام = الإصحاحات المفتوحة (js/live-roster.js + js/sync.js boardExtras + pages/servant.html).
 // (v9.516) تسريع المخدوم: النجوم تقف في القراءة/الامتحان، الأسفار من الكاش فوراً + تنزيل بالتوازي، سطر «جارٍ التحقق من الميعاد…» (js/ui.js + js/books.js + modules/books/index.js).
-export const APP_VERSION='v9.516';
+// v9.517: تبويب «🗂 كل الأسفار» في نتائج مباشرة (مصفوفة كل الأسفار لكل مخدوم)
+export const APP_VERSION='v9.517';
