@@ -970,6 +970,103 @@ body .btn-row .btn-manual,body .btn-row .btn-clear-input{flex:1 1 calc(50% - 5px
 .ab-pdf .ab-scroll{max-height:none!important;overflow:visible!important}
 .ab-pdf .ab-tbl th,.ab-pdf .ab-tbl td{position:static!important}
 </style>
+<style id="ab-live-v9518">
+/* (v9.518) نتائج مباشرة — المرحلة ١ من تصميم v14. إضافة فقط، كله مقيّد بـ #panel-live.
+   ألوان بمتغيّرات الثيم (--bg-2/--bg-3/--line/--ink/--gold/--teal/--orange/--rust) للغامق والفاتح.
+   الحركة كلها جوه prefers-reduced-motion:no-preference. مفيش خطوط خارجية ولا localStorage. */
+#panel-live{--ab-sh-d:rgba(0,0,0,.45);--ab-sh-l:rgba(120,150,210,.07)}
+[data-theme=light] #panel-live{--ab-sh-d:rgba(30,41,59,.14);--ab-sh-l:rgba(255,255,255,.95)}
+#panel-live [hidden]{display:none!important}
+
+/* ── سطر الحالة + البيل ── */
+#panel-live .ab-status{display:flex;justify-content:center;margin:.2rem 0 .1rem}
+#panel-live .ab-pill{--pc:var(--teal);display:inline-flex;align-items:center;gap:.45rem;min-height:30px;padding:0 .8rem;border-radius:999px;font-size:.82rem;font-weight:700;color:var(--pc);background:rgba(52,216,166,.12);border:1px solid rgba(52,216,166,.35)}
+#panel-live .ab-pill[data-k=off]{--pc:var(--orange);background:rgba(242,181,99,.12);border-color:rgba(242,181,99,.4)}
+#panel-live .ab-pill[data-k=auth]{--pc:var(--rust);background:rgba(242,124,141,.12);border-color:rgba(242,124,141,.4)}
+#panel-live .ab-pill[data-k=wait]{--pc:var(--ink-2);background:var(--bg-3);border-color:var(--line)}
+@supports (color:color-mix(in srgb,red,blue)){
+  #panel-live .ab-pill{background:color-mix(in srgb,var(--pc) 12%,transparent);border-color:color-mix(in srgb,var(--pc) 38%,transparent)}
+}
+#panel-live .ab-dot{width:8px;height:8px;border-radius:50%;background:var(--pc);flex:none}
+#panel-live .live-bar{background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:.45rem .7rem;font-size:.8rem}
+
+/* ── حقول الفلاتر + أزرار .live-ctl (نفس الـ DOM) ── */
+#panel-live .live-ctl select,#panel-live .live-ctl input{min-height:44px;font-size:.85rem;color:var(--ink);background:linear-gradient(180deg,var(--bg-3),var(--bg-2));border:1px solid var(--line);border-radius:14px;padding:.5rem .8rem;transition:border-color .2s,box-shadow .2s}
+#panel-live .live-ctl select:focus,#panel-live .live-ctl input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(232,196,104,.18)}
+#panel-live .live-ctl button,#panel-live .live-exp button{min-height:44px;font-size:.82rem;font-weight:700;color:var(--ink-2);background:linear-gradient(145deg,var(--bg-3),var(--bg-2));border:1px solid var(--line);border-radius:14px;padding:.5rem .9rem;box-shadow:3px 3px 8px var(--ab-sh-d),-2px -2px 6px var(--ab-sh-l);transition:transform .2s,box-shadow .2s,color .2s,background .2s}
+#panel-live .live-ctl button:focus-visible,#panel-live .live-exp button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#panel-live .live-ctl button:active,#panel-live .live-exp button:active{transform:translateY(1px);box-shadow:inset 2px 2px 5px var(--ab-sh-d),inset -2px -2px 5px var(--ab-sh-l)}
+#panel-live .live-ctl button.on{color:#1b1404;font-weight:800;background:linear-gradient(145deg,var(--gold-2),var(--gold) 55%,var(--gold-dim));border-color:transparent;box-shadow:inset 2px 2px 5px rgba(0,0,0,.22),inset -2px -2px 5px rgba(255,255,255,.2),0 3px 12px rgba(232,196,104,.3)}
+@media (hover:hover){
+  #panel-live .live-ctl button:not(.on):hover,#panel-live .live-exp button:hover{color:var(--ink);border-color:var(--line-2);transform:translateY(-1px)}
+}
+
+/* ── كروت الإحصاء (stats-bar الموجودة جوه الجدول) ── */
+#panel-live .stats-bar .stat-card{background:linear-gradient(145deg,var(--bg-3),var(--bg-2))!important;border:1px solid var(--line)!important;border-radius:14px!important;box-shadow:3px 3px 10px var(--ab-sh-d),-2px -2px 6px var(--ab-sh-l)!important}
+#panel-live .stats-bar .stat-card .num{font-variant-numeric:tabular-nums}
+
+/* ── Chips الفلاتر الفعالة ── */
+#panel-live .ab-chips{display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;align-items:center;margin:.3rem 0 .5rem}
+#panel-live .ab-chip{display:inline-flex;align-items:center;gap:.35rem;min-height:34px;padding:0 .3rem 0 .75rem;border-radius:999px;font-size:.8rem;color:var(--ink);background:var(--bg-3);border:1px solid var(--line-2);max-width:100%}
+#panel-live .ab-chip i{font-style:normal;color:var(--ink-2)}
+#panel-live .ab-chip b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw}
+#panel-live .ab-chip button{flex:none;width:26px;height:26px;min-width:26px;min-height:26px;padding:0;margin:0;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;font-size:.7rem;line-height:1;color:var(--ink);background:var(--line);box-shadow:none}
+#panel-live .ab-chip button:focus-visible,#panel-live .ab-chip-clear:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#panel-live .ab-chip-clear{min-height:34px;padding:0 .8rem;border-radius:999px;font-size:.8rem;font-weight:700;cursor:pointer;color:var(--gold);background:transparent;border:1px dashed var(--gold)}
+
+/* ── Gauge (التزام الفريق = avgCommit) ── */
+#panel-live .ab-gauge{--gc:var(--ink-2);position:relative;display:flex;align-items:center;gap:1rem;padding:.9rem 1rem;margin:.6rem 0;border-radius:var(--radius);background:linear-gradient(145deg,var(--bg-3),var(--bg-2));border:1px solid var(--line);box-shadow:var(--shadow-sm)}
+#panel-live .ab-gauge[data-level=great]{--gc:var(--teal)}
+#panel-live .ab-gauge[data-level=good]{--gc:var(--gold)}
+#panel-live .ab-gauge[data-level=mid]{--gc:var(--orange)}
+#panel-live .ab-gauge[data-level=low]{--gc:var(--rust)}
+@supports (color:color-mix(in srgb,red,blue)){
+  #panel-live .ab-gauge{background:radial-gradient(120% 140% at 0% 50%,color-mix(in srgb,var(--gc) 10%,var(--bg-2)) 0%,var(--bg-2) 70%);border-color:color-mix(in srgb,var(--gc) 35%,var(--line));box-shadow:inset 0 0 24px color-mix(in srgb,var(--gc) 8%,transparent),var(--shadow-sm)}
+}
+#panel-live .ab-gbox{position:relative;width:112px;height:112px;flex:none}
+#panel-live .ab-gbox svg{width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
+#panel-live .ab-ticks{fill:none;stroke:var(--line-2);stroke-width:4;stroke-dasharray:1.4 4.57}
+#panel-live .ab-trk{fill:none;stroke:var(--line);stroke-width:9}
+#panel-live .ab-vl{fill:none;stroke-linecap:round;stroke:var(--gc);stroke-dasharray:289.03;stroke-dashoffset:289.03}
+#panel-live .ab-vl.ab-glow{stroke-width:14;opacity:.5;filter:url(#abNeon)}
+#panel-live .ab-vl.ab-main{stroke-width:9}
+#panel-live .ab-vl.ab-core{stroke-width:2.5;stroke:var(--ink);opacity:.55}
+#panel-live .ab-gnum{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;direction:ltr}
+#panel-live .ab-gnum b{font-size:1.9rem;font-weight:800;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+html:not([data-theme=light]) #panel-live .ab-gnum b{text-shadow:0 0 10px var(--gc)}
+#panel-live .ab-gnum span{font-size:.85rem;font-weight:700;color:var(--gc);margin-inline-start:2px;align-self:center}
+#panel-live .ab-ginfo{min-width:0;flex:1}
+#panel-live .ab-ginfo h3{margin:0 0 .2rem;font-size:1rem;font-weight:800;color:var(--ink)}
+#panel-live .ab-ginfo p{margin:0 0 .55rem;font-size:.82rem;color:var(--ink-2);overflow-wrap:anywhere}
+#panel-live .ab-ginfo p b{color:var(--gc)}
+#panel-live .ab-ginfo ul{list-style:none;margin:0;padding:0;display:grid;gap:.4rem}
+#panel-live .ab-ginfo li{display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--ink)}
+#panel-live .ab-ginfo li b{margin-inline-start:auto;font-weight:800;font-variant-numeric:tabular-nums}
+#panel-live .ab-gd{width:10px;height:10px;border-radius:50%;flex:none;background:var(--gc)}
+#panel-live .ab-gd.ab-gd2{background:var(--line-2)}
+#panel-live .ab-ginfo small{display:block;margin-top:.45rem;font-size:.72rem;color:var(--ink-2)}
+@media (max-width:360px){
+  #panel-live .ab-gauge{flex-direction:column;text-align:center}
+  #panel-live .ab-ginfo li{justify-content:center}
+}
+
+/* ── الحركة الناعمة (مسموحة هنا: اللوحة للخدام والمالك بس) — بتحترم «تقليل الحركة» ── */
+@keyframes ab-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--pc) 55%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes ab-hum{0%,100%{opacity:.38}50%{opacity:.7}}
+@keyframes ab-border-glow{from{opacity:.15}to{opacity:.65}}
+@media (prefers-reduced-motion:no-preference){
+  #panel-live .ab-vl{transition:stroke-dashoffset .9s cubic-bezier(.4,0,.2,1),stroke .3s}
+  #panel-live .ab-vl.ab-glow{animation:ab-hum 3.2s ease-in-out infinite}
+  #panel-live .ab-gauge::after{content:"";position:absolute;inset:-1px;border-radius:inherit;border:1px solid var(--gc);pointer-events:none;opacity:.15;animation:ab-border-glow 1.8s ease-in-out infinite alternate}
+  #panel-live .ab-pill[data-k=live] .ab-dot{animation:ab-pulse 2s infinite}
+  #panel-live .ab-chip{animation:ab-chip-in .2s ease-out}
+  @keyframes ab-chip-in{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+}
+@media (prefers-reduced-motion:reduce){
+  #panel-live .live-ctl button,#panel-live .live-exp button,#panel-live .stat-card{transition:none!important}
+  #panel-live .live-ctl button:hover,#panel-live .live-exp button:hover,#panel-live .stat-card:hover{transform:none!important}
+}
+</style>
 </head>
 <body>
 <div id="gate"><div style="font-size:3rem">🔒</div><div id="gateMsg">جارٍ التحقق من الصلاحية…</div></div>
@@ -1242,6 +1339,7 @@ body .btn-row .btn-manual,body .btn-row .btn-clear-input{flex:1 1 calc(50% - 5px
 <!-- PANEL: LIVE (v8) -->
 <div class="main-tab-panel" id="panel-live">
   <div class="container">
+    <div class="ab-status" id="abStatus" role="status" aria-live="polite"><span class="ab-pill" data-k="wait"><i class="ab-dot" aria-hidden="true"></i><span id="abPillTx">جارٍ التحميل…</span></span></div>
     <div class="live-bar" id="liveBar"></div>
     <div class="live-ctl">
       <select id="liveGrade" aria-label="الصف"><option value="">كل الصفوف</option></select>
@@ -1255,7 +1353,30 @@ body .btn-row .btn-manual,body .btn-row .btn-clear-input{flex:1 1 calc(50% - 5px
       <button data-lv="books">🗂 كل الأسفار</button>
       <button id="liveRefresh">🔄 تحديث</button>
     </div>
+    <div class="ab-chips" id="abChips" aria-label="الفلاتر الفعالة" hidden></div>
     <div class="live-sum" id="liveSum"></div>
+    <div class="ab-gauge" id="abGauge" data-level="none" role="img" aria-label="التزام الفريق" hidden>
+      <div class="ab-gbox">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <defs><filter id="abNeon" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4"/></filter></defs>
+          <circle class="ab-ticks" cx="60" cy="60" r="57"/>
+          <circle class="ab-trk" cx="60" cy="60" r="46"/>
+          <circle class="ab-vl ab-glow" cx="60" cy="60" r="46"/>
+          <circle class="ab-vl ab-main" cx="60" cy="60" r="46"/>
+          <circle class="ab-vl ab-core" cx="60" cy="60" r="46"/>
+        </svg>
+        <div class="ab-gnum"><b id="abGnum">0</b><span>%</span></div>
+      </div>
+      <div class="ab-ginfo">
+        <h3>التزام الفريق</h3>
+        <p id="abGtext"></p>
+        <ul>
+          <li><i class="ab-gd"></i>التزام كامل<b id="abGfull">0</b></li>
+          <li><i class="ab-gd ab-gd2"></i>التزام ناقص<b id="abGrest">0</b></li>
+        </ul>
+        <small id="abGnote"></small>
+      </div>
+    </div>
     <div class="live-wrap" id="liveTableWrap"></div>
     <div class="live-exp">
       <button data-lx="csv">📄 CSV</button>
@@ -3201,6 +3322,133 @@ async function livePdf(){
     }catch(x){ showToast('حدث خطأ أثناء التصدير: '+x.message,'error'); }
     finally{ wrap.classList.remove('ab-pdf'); }
   }
+})();
+</script>
+<script>
+// (v9.518) نتائج مباشرة — المرحلة ١: Chips الفلاتر الفعالة + Gauge التزام الفريق + بيل «مباشر/غير متصل» + Toast الاتصال. إضافة فقط.
+// بيقرا (قراءة بس) من سكربت النتائج المباشرة: LIVE / liveFilters / liveModel / liveStudents / showToast.
+// الربط: MutationObserver مستقل على #liveBar (liveBar() بتتنادى في كل liveRender حتى في الخطأ والأوفلاين) — مش بيلمس #liveTableWrap ولا observer v9.517.
+// الكتابة الوحيدة: عناصره هو (#abStatus/#abChips/#abGauge) + تصفير قيم الفلاتر لما المستخدم يدوس ✕ أو «مسح الكل» (بيبعت change/input زي المستخدم).
+(function abLive18(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  const bar=$('liveBar'), pill=$('abStatus'), chips=$('abChips'), card=$('abGauge');
+  if(!bar||!pill||!chips||!card||typeof LIVE==='undefined'||typeof liveFilters!=='function') return;
+  const C=289.03; // محيط الدايرة r=46
+  const reduce=()=>!!(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches);
+  const active=()=>{ const p=$('panel-live'); return !!(p&&p.classList.contains('active')); };
+  const toast=(m,t)=>{ try{ if(typeof showToast==='function') showToast(m,t); }catch(e){} };
+  // نفس مستويات levelOf في js/progress.js (v9.496): ٨٠ / ٦٠ / ٤٠
+  function levelOf(p){
+    const v=Math.round(Number(p)||0);
+    if(v>=80) return {key:'great',label:'ممتاز'};
+    if(v>=60) return {key:'good',label:'جيد'};
+    if(v>=40) return {key:'mid',label:'يحتاج دفعة'};
+    return {key:'low',label:'محتاج تدخل'};
+  }
+
+  // ── بيل الحالة + Toast ──
+  let prev=null, seenLive=false, lastNet=0;
+  function stateOf(){
+    let k;
+    if(LIVE.error==='auth') k='auth';
+    else if(LIVE.fromCache&&LIVE.at) k='off';
+    else if(LIVE.fromCache) k=LIVE.error==='offline'?'off':'wait';
+    else k='live';
+    if(k==='live'&&navigator.onLine===false) k='off';
+    return k;
+  }
+  const TXT={live:'مباشر',off:'غير متصل',auth:'الجلسة انتهت',wait:'جارٍ التحميل…'};
+  function renderPill(){
+    const k=stateOf(), p=pill.firstElementChild, tx=$('abPillTx');
+    if(p.dataset.k!==k) p.dataset.k=k;
+    if(tx&&tx.textContent!==TXT[k]) tx.textContent=TXT[k];
+    if(k!=='live'&&k!=='off') return;
+    const quiet=Date.now()-lastNet<=5000;
+    if(active()&&!quiet){
+      if(prev==='live'&&k==='off'&&navigator.onLine!==false) toast('⚠️ تعذّر الاتصال بالسيرفر — بتتعرض نسخة محفوظة','error');
+      else if(prev==='off'&&k==='live'&&seenLive) toast('✅ اتحدّثت البيانات');
+    }
+    if(k==='live') seenLive=true;
+    prev=k;
+  }
+
+  // ── Chips الفلاتر الفعالة ──
+  const FIELDS=[['grade','liveGrade','الصف'],['book','liveBook','السفر'],['gender','liveGender','الجنس']];
+  function activeFilters(){
+    const f=liveFilters(), out=[];
+    FIELDS.forEach(([key,id,k])=>{
+      if(!f[key]) return;
+      const el=$(id), o=el&&el.selectedOptions&&el.selectedOptions[0];
+      out.push({id,k,v:o?o.textContent:String(f[key])});
+    });
+    const q=String(f.q||'').trim();
+    if(q) out.push({id:'liveQ',k:'بحث',v:q});
+    return out;
+  }
+  function renderChips(){
+    const list=activeFilters();
+    chips.textContent='';
+    chips.hidden=!list.length;
+    if(!list.length) return;
+    list.forEach(a=>{
+      const c=document.createElement('span'); c.className='ab-chip';
+      const k=document.createElement('i'); k.textContent=a.k+':';
+      const v=document.createElement('b'); v.textContent=a.v; // textContent: اسم/نص البحث مش بيتفسّر HTML
+      const x=document.createElement('button'); x.type='button'; x.textContent='✕'; x.dataset.abRm=a.id; x.setAttribute('aria-label','إزالة فلتر '+a.k);
+      c.append(k,v,x); chips.appendChild(c);
+    });
+    const all=document.createElement('button'); all.type='button'; all.className='ab-chip-clear'; all.dataset.abClear='1'; all.textContent='مسح الكل';
+    chips.appendChild(all);
+  }
+  const fire=el=>el.dispatchEvent(new Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));
+  chips.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('button'); if(!b) return;
+    if(b.dataset.abRm){ const el=$(b.dataset.abRm); if(el){ el.value=''; fire(el); } }
+    else if(b.dataset.abClear){ ['liveGrade','liveBook','liveGender','liveQ'].forEach(id=>{ const el=$(id); if(el) el.value=''; }); fire($('liveGrade')); } // حدث واحد: liveRender بتقرا كل الفلاتر
+  });
+
+  // ── Gauge: الرقم = avgCommit ──
+  let curNum=0, raf=0;
+  const num=$('abGnum'), arcs=card.querySelectorAll('.ab-vl');
+  function setArc(p){ const off=C*(1-p/100); arcs.forEach(c=>{ c.style.strokeDashoffset=String(off); }); }
+  function setNum(p){
+    cancelAnimationFrame(raf);
+    if(reduce()||Math.abs(p-curNum)<1){ curNum=p; num.textContent=String(Math.round(p)); return; }
+    const from=curNum, t0=performance.now(), dur=900;
+    const step=t=>{ const k=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-k,3); curNum=from+(p-from)*e; num.textContent=String(Math.round(curNum)); if(k<1) raf=requestAnimationFrame(step); else curNum=p; };
+    raf=requestAnimationFrame(step);
+  }
+  function gaugeData(){
+    if(!LIVE.RO||!LIVE.loaded||typeof liveModel!=='function'||typeof liveStudents!=='function') return null;
+    try{
+      const m=liveModel(); if(!m||!m.scope) return null;
+      const s=liveStudents(m,true), st=LIVE.RO.liveStats(s.students,s.unsolved.length);
+      if(!st.registered) return null;
+      return {pct:Math.max(0,Math.min(100,Number(st.avgCommit)||0)),st,title:m.scope.title,partial:!!m.unsolvedHidden};
+    }catch(e){ return null; }
+  }
+  function renderGauge(){
+    const g=gaugeData();
+    if(!g){ card.hidden=true; return; }
+    const lv=levelOf(g.pct);
+    card.hidden=false; card.dataset.level=lv.key;
+    setArc(g.pct); setNum(g.pct);
+    const t=$('abGtext'); t.textContent='';
+    const b=document.createElement('b'); b.textContent=lv.label;
+    t.append(b,document.createTextNode(g.title?' — '+g.title:''));
+    $('abGfull').textContent=String(g.st.full);
+    $('abGrest').textContent=String(Math.max(0,g.st.registered-g.st.full));
+    $('abGnote').textContent=g.partial?'محسوب على اللي حلّوا بس (قايمة المسجّلين مش كاملة)':'متوسط التزام '+g.st.registered+' مسجّل (اللي لم يحل التزامه ٠)';
+    card.setAttribute('aria-label','التزام الفريق '+Math.round(g.pct)+'٪');
+  }
+
+  function update(){ try{ renderPill(); renderChips(); renderGauge(); }catch(e){} }
+  new MutationObserver(update).observe(bar,{childList:true,characterData:true,subtree:true});
+  addEventListener('offline',()=>{ lastNet=Date.now(); if(active()) toast('📴 انقطع الاتصال — بتتعرض آخر نسخة محفوظة','error'); update(); });
+  addEventListener('online',()=>{ lastNet=Date.now(); if(active()) toast('🟢 رجع الاتصال'); update(); });
+  update();
+  window.__abLive18={levelOf,update}; // للاختبار بس
 })();
 </script>
 <script type="module">
